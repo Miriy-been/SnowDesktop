@@ -197,11 +197,40 @@ PageDotsLayoutInfo DesktopApp::ComputePageDotsLayout() const
     const pageDots::PageDotsGeometry geom =
         pageDots::ComputePageDotsGeometry(
             totalPages, activeRadius, inactiveRadius, dotGap);
-    const float capsuleCenterX = static_cast<float>(workArea.left + workArea.right)
-        * 0.5f;
-    const float capsuleTop = static_cast<float>(workArea.bottom)
-        - geom.marginBottom - geom.capsuleHeight;
-    const float capsuleLeft = capsuleCenterX - geom.capsuleWidth * 0.5f;
+
+    // 位置可自定义：水平（左/中/右）+ 垂直（底部/顶部）+ 边距
+    const float margin = generalSettings_.pageDotsMargin;
+    const float workL = static_cast<float>(workArea.left);
+    const float workR = static_cast<float>(workArea.right);
+    const float workT = static_cast<float>(workArea.top);
+    const float workB = static_cast<float>(workArea.bottom);
+    float capsuleCenterX = 0.0f;
+    switch (generalSettings_.pageDotsHorizontal)
+    {
+    case 1: // 左侧
+        capsuleCenterX = workL + margin + geom.capsuleWidth * 0.5f;
+        break;
+    case 2: // 右侧
+        capsuleCenterX = workR - margin - geom.capsuleWidth * 0.5f;
+        break;
+    default: // 居中
+        capsuleCenterX = (workL + workR) * 0.5f;
+        break;
+    }
+    float capsuleTop = 0.0f;
+    if (generalSettings_.pageDotsVertical == 1)
+        capsuleTop = workT + margin; // 顶部
+    else
+        capsuleTop = workB - margin - geom.capsuleHeight; // 底部
+
+    float capsuleLeft = capsuleCenterX - geom.capsuleWidth * 0.5f;
+    // 防止边距设置导致胶囊越出工作区
+    capsuleLeft = std::clamp(
+        capsuleLeft, workL + 4.0f,
+        std::max(workL + 4.0f, workR - geom.capsuleWidth - 4.0f));
+    capsuleTop = std::clamp(
+        capsuleTop, workT + 4.0f,
+        std::max(workT + 4.0f, workB - geom.capsuleHeight - 4.0f));
 
     info.valid = true;
     info.totalPages = totalPages;
@@ -268,14 +297,36 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
     const int currentPage = pageOffset_;
     const int hoveredDot = HitTestPageDotsIndicator(lastMousePoint_);
 
-    // 主题色
+    // 主题色（背景胶囊沿用主题色）
     const PersonalizationSettings& p =
         settingsWindow_ ? settingsWindow_->GetPersonalization()
                         : PersonalizationSettings::DarkPreset();
     const bool darkTheme = p.contentTheme == 0;
-    const float dotR = darkTheme ? 1.0f : 0.10f;
-    const float dotG = darkTheme ? 1.0f : 0.12f;
-    const float dotB = darkTheme ? 1.0f : 0.16f;
+
+    // 圆点颜色：0=跟随主题 1=白色 2=黑色 3=蓝色 4=自定义
+    float dotR = 0.0f, dotG = 0.0f, dotB = 0.0f;
+    switch (generalSettings_.pageDotsColorMode)
+    {
+    case 1:
+        dotR = 1.0f; dotG = 1.0f; dotB = 1.0f;
+        break;
+    case 2:
+        dotR = 0.10f; dotG = 0.12f; dotB = 0.16f;
+        break;
+    case 3:
+        dotR = 0.39f; dotG = 0.66f; dotB = 1.0f;
+        break;
+    case 4:
+        dotR = static_cast<float>(generalSettings_.pageDotsColorR) / 255.0f;
+        dotG = static_cast<float>(generalSettings_.pageDotsColorG) / 255.0f;
+        dotB = static_cast<float>(generalSettings_.pageDotsColorB) / 255.0f;
+        break;
+    default:
+        dotR = darkTheme ? 1.0f : 0.10f;
+        dotG = darkTheme ? 1.0f : 0.12f;
+        dotB = darkTheme ? 1.0f : 0.16f;
+        break;
+    }
 
     // 背景胶囊（hover 时略提亮，提示可交互）
     const bool capsuleHovered = hoveredDot >= 0;

@@ -99,6 +99,16 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
     POINT current{ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
     POINT oldMouse = lastMousePoint_;
     lastMousePoint_ = current;
+    // 圆点指示器悬停状态变化时刷新（普通移动不触发全量重绘，需显式 invalidate）
+    {
+        const int hoveredDot = HitTestPageDotsIndicator(current);
+        if (hoveredDot != dotsHoveredIndex_)
+        {
+            dotsHoveredIndex_ = hoveredDot;
+            if (hwnd_ && IsWindow(hwnd_))
+                InvalidateRect(hwnd_, nullptr, FALSE);
+        }
+    }
     UpdateSystemTaskbarRevealGuard();
     UpdateDockWindowPreview(current);
 

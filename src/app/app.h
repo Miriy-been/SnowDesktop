@@ -2706,6 +2706,7 @@ private:
     // the real cursor. Treating the zero-initialized point as input makes the
     // first frame spuriously hover whatever happens to occupy (0, 0).
     POINT lastMousePoint_{ LONG_MIN, LONG_MIN };
+    int dotsHoveredIndex_ = -1;  ///< 圆点指示器当前悬停页索引（-1 表示未悬停），用于触发 hover 重绘
     SelectionController selectionController_;
     // 组件统一调度令牌：token -> widgetId（manifest 刷新与命名定时器共用）
     std::unordered_map<UINT_PTR, std::wstring> widgetTimerIds_;

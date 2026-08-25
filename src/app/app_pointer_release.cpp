@@ -7,6 +7,12 @@ void DesktopApp::OnMouseLeave()
 {
     POINT cursorScreen{};
     GetCursorPos(&cursorScreen);
+    if (dotsHoveredIndex_ != -1)
+    {
+        dotsHoveredIndex_ = -1;
+        if (hwnd_ && IsWindow(hwnd_))
+            InvalidateRect(hwnd_, nullptr, FALSE);
+    }
     const bool pointerStillInteractsWithDockPreview =
         dockWindowPreview_ &&
         dockWindowPreview_->ContainsInteractionPoint(cursorScreen);

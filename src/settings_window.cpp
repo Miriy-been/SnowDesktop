@@ -2120,19 +2120,95 @@ void SettingsWindow::DrawGeneralPage()
     ImGui::Spacing();
     ImGui::SeparatorText(_L("app.settings.page_dots"));
     ImGui::Spacing();
-    if (ImGui::SliderFloat("##PageDotsGap", &generalSettings_.pageDotsGap,
-            1.0f, 30.0f, "%.1f"))
-        generalSettingsDirty_ = true;
-    ImGui::SameLine();
-    ImGui::TextUnformatted(_L("app.settings.page_dots_gap"));
-    if (ImGui::SliderFloat("##PageDotsSize", &generalSettings_.pageDotsActiveRadius,
-            2.0f, 16.0f, "%.1f"))
-        generalSettingsDirty_ = true;
-    ImGui::SameLine();
-    ImGui::TextUnformatted(_L("app.settings.page_dots_size"));
+    const float dotsControlW = kSettingControlWidthDip * dpiScale_;
+    {
+        BeginSettingRow(_L("app.settings.page_dots_gap"), dotsControlW);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderFloat("##PageDotsGap", &generalSettings_.pageDotsGap,
+                1.0f, 30.0f, "%.1f"))
+            generalSettingsDirty_ = true;
+    }
+    {
+        BeginSettingRow(_L("app.settings.page_dots_size"), dotsControlW);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderFloat("##PageDotsSize", &generalSettings_.pageDotsActiveRadius,
+                2.0f, 16.0f, "%.1f"))
+            generalSettingsDirty_ = true;
+    }
     if (DrawSettingCheckbox(_L("app.settings.page_dots_show_name"), "##PageDotsShowName",
             &generalSettings_.pageDotsShowName))
         generalSettingsDirty_ = true;
+    {
+        BeginSettingRow(_L("app.settings.page_dots_color"), dotsControlW);
+        const char* colorNames[] = {
+            _L("app.settings.page_dots_color_theme"),
+            _L("app.settings.page_dots_color_white"),
+            _L("app.settings.page_dots_color_black"),
+            _L("app.settings.page_dots_color_blue"),
+            _L("app.settings.page_dots_color_custom")
+        };
+        int colorMode = std::clamp(generalSettings_.pageDotsColorMode, 0, 4);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::Combo("##PageDotsColorMode", &colorMode,
+                colorNames, IM_ARRAYSIZE(colorNames)))
+        {
+            generalSettings_.pageDotsColorMode = colorMode;
+            generalSettingsDirty_ = true;
+        }
+    }
+    if (generalSettings_.pageDotsColorMode == 4)
+    {
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderInt("##PageDotsColorR",
+                &generalSettings_.pageDotsColorR, 0, 255, "R %d"))
+            generalSettingsDirty_ = true;
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderInt("##PageDotsColorG",
+                &generalSettings_.pageDotsColorG, 0, 255, "G %d"))
+            generalSettingsDirty_ = true;
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderInt("##PageDotsColorB",
+                &generalSettings_.pageDotsColorB, 0, 255, "B %d"))
+            generalSettingsDirty_ = true;
+    }
+    {
+        BeginSettingRow(_L("app.settings.page_dots_vertical"), dotsControlW);
+        const char* verticalNames[] = {
+            _L("app.settings.page_dots_bottom"),
+            _L("app.settings.page_dots_top")
+        };
+        int vertical = std::clamp(generalSettings_.pageDotsVertical, 0, 1);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::Combo("##PageDotsVertical", &vertical,
+                verticalNames, IM_ARRAYSIZE(verticalNames)))
+        {
+            generalSettings_.pageDotsVertical = vertical;
+            generalSettingsDirty_ = true;
+        }
+    }
+    {
+        BeginSettingRow(_L("app.settings.page_dots_horizontal"), dotsControlW);
+        const char* horizontalNames[] = {
+            _L("app.settings.page_dots_center"),
+            _L("app.settings.page_dots_left"),
+            _L("app.settings.page_dots_right")
+        };
+        int horizontal = std::clamp(generalSettings_.pageDotsHorizontal, 0, 2);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::Combo("##PageDotsHorizontal", &horizontal,
+                horizontalNames, IM_ARRAYSIZE(horizontalNames)))
+        {
+            generalSettings_.pageDotsHorizontal = horizontal;
+            generalSettingsDirty_ = true;
+        }
+    }
+    {
+        BeginSettingRow(_L("app.settings.page_dots_margin"), dotsControlW);
+        ImGui::SetNextItemWidth(dotsControlW);
+        if (ImGui::SliderFloat("##PageDotsMargin",
+                &generalSettings_.pageDotsMargin, 8.0f, 100.0f, "%.0f px"))
+            generalSettingsDirty_ = true;
+    }
 
     ImGui::Spacing();
     ImGui::SeparatorText(_L("app.settings.dock_bar"));

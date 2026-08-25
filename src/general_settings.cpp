@@ -118,12 +118,27 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.quickNavTheme = std::clamp(theme, 0, 3);
     }
     float floatValue = 0.0f;
+    int intValue = 0;
     if (ReadFloatField(text, "pageDotsGap", floatValue))
         settings.pageDotsGap = std::clamp(floatValue, 1.0f, 30.0f);
     if (ReadFloatField(text, "pageDotsActiveRadius", floatValue))
         settings.pageDotsActiveRadius = std::clamp(floatValue, 2.0f, 16.0f);
     if (ReadBoolField(text, "pageDotsShowName", val))
         settings.pageDotsShowName = val;
+    if (ReadIntField(text, "pageDotsColorMode", intValue))
+        settings.pageDotsColorMode = std::clamp(intValue, 0, 4);
+    if (ReadIntField(text, "pageDotsColorR", intValue))
+        settings.pageDotsColorR = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsColorG", intValue))
+        settings.pageDotsColorG = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsColorB", intValue))
+        settings.pageDotsColorB = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsVertical", intValue))
+        settings.pageDotsVertical = std::clamp(intValue, 0, 1);
+    if (ReadIntField(text, "pageDotsHorizontal", intValue))
+        settings.pageDotsHorizontal = std::clamp(intValue, 0, 2);
+    if (ReadFloatField(text, "pageDotsMargin", floatValue))
+        settings.pageDotsMargin = std::clamp(floatValue, 8.0f, 100.0f);
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
     return true;
 }
@@ -148,6 +163,13 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"pageDotsActiveRadius\": " << settings.pageDotsActiveRadius << ",\n";
     file << "  \"pageDotsShowName\": "
          << (settings.pageDotsShowName ? "true" : "false") << ",\n";
+    file << "  \"pageDotsColorMode\": " << settings.pageDotsColorMode << ",\n";
+    file << "  \"pageDotsColorR\": " << settings.pageDotsColorR << ",\n";
+    file << "  \"pageDotsColorG\": " << settings.pageDotsColorG << ",\n";
+    file << "  \"pageDotsColorB\": " << settings.pageDotsColorB << ",\n";
+    file << "  \"pageDotsVertical\": " << settings.pageDotsVertical << ",\n";
+    file << "  \"pageDotsHorizontal\": " << settings.pageDotsHorizontal << ",\n";
+    file << "  \"pageDotsMargin\": " << settings.pageDotsMargin << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;

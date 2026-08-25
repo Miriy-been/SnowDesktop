@@ -1842,12 +1842,14 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
         case kContextPageRename:
         {
             needsDesktopFocus = false; // 编辑框已获得焦点，禁止后续抢焦点导致闪退
-            POINT clientPoint = screenPoint;
-            ScreenToClient(hwnd_, &clientPoint);
-            const GridPage* clickedPage = GridPageFromPoint(clientPoint);
-            const std::wstring clickedPageId =
-                clickedPage ? clickedPage->id : L"";
-            auto it = std::ranges::find(savedPageIds_, clickedPageId);
+            POINT renameClientPoint = screenPoint;
+            ScreenToClient(hwnd_, &renameClientPoint);
+            const GridPage* renameClickedPage =
+                GridPageFromPoint(renameClientPoint);
+            const std::wstring renameClickedPageId =
+                renameClickedPage ? renameClickedPage->id : L"";
+            auto it = std::ranges::find(
+                savedPageIds_, renameClickedPageId);
             int pageIdx = (it != savedPageIds_.end())
                 ? static_cast<int>(it - savedPageIds_.begin())
                 : pageOffset_ + static_cast<int>(gridPages_.size()) - 1;
