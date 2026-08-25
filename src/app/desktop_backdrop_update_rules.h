@@ -27,8 +27,8 @@ inline bool ShouldCollectAllPanels(
     const RECT& clientRect) noexcept
 {
     return forceCompleteCollection ||
+        widgetPreviewActive ||
         (!dragSessionActive &&
-        !widgetPreviewActive &&
         !desktopMarqueeActive &&
         CoversClientArea(updateRect, clientRect));
 }

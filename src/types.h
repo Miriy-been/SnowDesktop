@@ -451,6 +451,11 @@ struct DesktopWidget
     bool showOnHoverOnly = false;
     bool keepWhenDesktopHidden = false;
     bool privacyMode = false;
+    bool locked = false; ///< 锁定后禁止拖拽移动/缩放，避免误触移位
+    bool hideBorder = false; ///< 隐藏组件边框
+    bool freePosition = false; ///< 自由摆放（不吸附网格）
+    int freeOffsetX = 0; ///< 自由摆放时相对网格单元的像素偏移 X
+    int freeOffsetY = 0; ///< 自由摆放时相对网格单元的像素偏移 Y
     bool scrollContainerMode = false;
     bool userRenamed = false; // Compatibility mirror of !customTitle.empty().
     bool dateHeaders = false;

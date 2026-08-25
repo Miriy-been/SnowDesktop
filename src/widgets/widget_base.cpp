@@ -379,6 +379,22 @@ RECT WidgetContainer::GetMoveHandleRect() const
 }
 
 /**
+ * @brief 获取拖拽移动命中区（比视觉底栏更高，方便拖动组件）。
+ * @details 视觉底栏高度不变，仅把拖拽判定区域向上延伸为 2 倍，
+ *          让组件下方更大范围都能拖动，且不影响底部栏外观。
+ * @return 拖拽命中区边界矩形
+ */
+RECT WidgetContainer::GetDragHandleRect() const
+{
+    RECT move = GetMoveHandleRect();
+    const int barHeight = Cu(GetBarHeight());
+    RECT expanded = move;
+    expanded.top = std::max<LONG>(
+        move.top - barHeight, move.bottom - barHeight * 2);
+    return expanded;
+}
+
+/**
  * @brief 获取右下角缩放手柄区域
  * @return 缩放手柄边界矩形
  */
@@ -433,7 +449,7 @@ WidgetHit WidgetContainer::HitTestWidget(POINT pt) const
 
     if (HitResizeHandle(pt)) return WidgetHit::ResizeHandle;
 
-    RECT move = GetMoveHandleRect();
+    RECT move = GetDragHandleRect();
     if (PtInRect(&move, pt)) return WidgetHit::MoveHandle;
 
     return WidgetHit::Content;
@@ -1924,8 +1940,13 @@ void WidgetContainer::DrawChrome(ID2D1DeviceContext* context, POINT mousePt)
     };
 
     // ── 1. Background + border ────────────────────────────────
-    app_->DrawWidgetPanelBackground(context, frame, radius, fillColor, borderColor,
-        selected, strokeW, appearanceOverride, ShouldRegisterBackdrop());
+    const bool hideBorder = data_->hideBorder || app_->generalSettings_.widgetHideBorder;
+    const bool effectiveSelected = selected && !hideBorder;
+    const D2D1_COLOR_F effectiveBorder = hideBorder
+        ? D2D1::ColorF(0, 0, 0, 0) : borderColor;
+    const float effectiveStrokeW = hideBorder ? 0.0f : strokeW;
+    app_->DrawWidgetPanelBackground(context, frame, radius, fillColor, effectiveBorder,
+        effectiveSelected, effectiveStrokeW, appearanceOverride, ShouldRegisterBackdrop());
 
     // ── 2. Content (clipped to rounded frame via cached geometry) ──
     {

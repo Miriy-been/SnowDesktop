@@ -538,6 +538,40 @@ void DesktopApp::OnLeftButtonUp(WPARAM wp, LPARAM lp)
     // ── Widget action completion ────────────────────────────
     if (widgetAction_ != WidgetAction::None && mouseDownWidgetIndex_ < widgets_.size())
     {
+        // 内容区按下但未拖动：按普通点击转发给 Lua（onMouseUp + onClick）
+        if (widgetAction_ == WidgetAction::PendingMove &&
+            widgetContentDragArm_ &&
+            widgets_[mouseDownWidgetIndex_].type ==
+                DesktopWidgetType::LuaScript &&
+            widgetEngine_ &&
+            HitTestStandaloneWidget(mouseDownWidgetIndex_,
+                upPoint) == WidgetHit::Content)
+        {
+            RECT frame =
+                GetStandaloneWidgetFrameRect(
+                    widgets_[mouseDownWidgetIndex_]);
+            widgetEngine_->EnsureWidgetLoaded(
+                widgets_[mouseDownWidgetIndex_].id,
+                widgets_[mouseDownWidgetIndex_].packageId);
+            const bool hostInputHandled =
+                widgetEngine_->HandleHostInputPointerUp(
+                    widgets_[mouseDownWidgetIndex_].id,
+                    upPoint.x - frame.left,
+                    upPoint.y - frame.top);
+            if (hostInputHandled)
+                UpdateHostInputImePosition();
+            if (!hostInputHandled)
+            {
+                widgetEngine_->InvokeMouseEvent(
+                    widgets_[mouseDownWidgetIndex_].id,
+                    "onMouseUp", upPoint.x - frame.left,
+                    upPoint.y - frame.top, 1, 0);
+                widgetEngine_->InvokeClick(
+                    widgets_[mouseDownWidgetIndex_].id,
+                    upPoint.x - frame.left,
+                    upPoint.y - frame.top);
+            }
+        }
         if (widgetAction_ == WidgetAction::Move)
         {
             const auto movingPayload = snowdesktop::slot_contract::
@@ -603,6 +637,17 @@ void DesktopApp::OnLeftButtonUp(WPARAM wp, LPARAM lp)
                 RebuildContainersAndItems();
                 LayoutItems();
             }
+            else if (widgets_[mouseDownWidgetIndex_].freePosition ||
+                generalSettings_.widgetFreePosition)
+            {
+                // 自由摆放：保存像素偏移，不碰撞检测
+                widgets_[mouseDownWidgetIndex_].freeOffsetX = widgetPreviewOffset_.x;
+                widgets_[mouseDownWidgetIndex_].freeOffsetY = widgetPreviewOffset_.y;
+                widgets_[mouseDownWidgetIndex_].freePosition = true;
+                LayoutItems();
+                RebuildContainersAndItems();
+                SaveLayoutSlots();
+            }
             else
                 PlaceWidgetWithDisplacement(mouseDownWidgetIndex_, widgetPreviewCell_, widgetPreviewSpan_, true);
         }
@@ -610,6 +655,7 @@ void DesktopApp::OnLeftButtonUp(WPARAM wp, LPARAM lp)
             PlaceWidgetWithDisplacement(mouseDownWidgetIndex_, widgetPreviewCell_, widgetPreviewSpan_, false);
         // PendingMove/PendingResize: just cancel without displacement
         widgetAction_ = WidgetAction::None;
+        widgetContentDragArm_ = false;
         widgetDockTarget_ = false;
         widgetDockTargetContainer_ = nullptr;
         widgetDockInsertIndex_ = 0;

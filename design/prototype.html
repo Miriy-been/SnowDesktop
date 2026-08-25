@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SnowDesktop 界面重设计 · 原型</title>
+<style>
+  /* ============================================================
+     SnowDesktop Redesign Prototype
+     设计系统：Glassmorphism 毛玻璃 + 简约瑞士风格
+     基调：深空蓝黑 · 精炼蓝强调色 · 统一圆角/间距/阴影
+     ============================================================ */
+  :root{
+    --bg:#0B0F17;
+    --bg-2:#0E1420;
+    --surface:rgba(255,255,255,.055);
+    --surface-2:rgba(255,255,255,.085);
+    --surface-3:rgba(255,255,255,.12);
+    --border:rgba(255,255,255,.09);
+    --border-2:rgba(255,255,255,.16);
+    --text-1:#F2F6FC;
+    --text-2:#A6B0C3;
+    --text-3:#66718A;
+    --accent:#5B9CFF;
+    --accent-2:#3D7BFF;
+    --accent-soft:rgba(91,156,255,.16);
+    --accent-border:rgba(91,156,255,.45);
+    --ok:#34D399;
+    --warn:#F5B759;
+    --danger:#F87171;
+    --r-lg:18px;
+    --r-md:13px;
+    --r-sm:9px;
+    --r-xs:7px;
+    --blur:22px;
+    --shadow:0 18px 50px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+    --shadow-sm:0 6px 20px rgba(0,0,0,.35);
+    --font:"Segoe UI Variable Text","Segoe UI",Inter,system-ui,-apple-system,sans-serif;
+    --mono:"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font);
+    color:var(--text-1);
+    background:
+      radial-gradient(1200px 700px at 85% -10%, rgba(61,123,255,.14), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(52,211,153,.07), transparent 55%),
+      linear-gradient(180deg,#0B0F17 0%,#0C111B 100%);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--accent);color:#0B0F17}
+
+  /* ---------- 顶部导航 ---------- */
+  .topnav{
+    position:fixed;inset:0 0 auto 0;z-index:100;
+    display:flex;align-items:center;gap:6px;
+    padding:10px 18px;
+    background:rgba(11,15,23,.72);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-right:14px}
+  .brand .logo{
+    width:30px;height:30px;border-radius:9px;
+    display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#7C5CFF);
+    box-shadow:0 4px 14px rgba(91,156,255,.4);
+  }
+  .brand .logo svg{width:17px;height:17px}
+  .brand b{font-size:13.5px;letter-spacing:.2px}
+  .brand small{display:block;font-size:10.5px;color:var(--text-3);font-weight:500;letter-spacing:.4px}
+  .navbtn{
+    border:1px solid transparent;background:transparent;color:var(--text-2);
+    font:600 12.5px var(--font);padding:8px 13px;border-radius:10px;
+    cursor:pointer;transition:all .18s ease;
+  }
+  .navbtn:hover{background:var(--surface-2);color:var(--text-1)}
+  .navbtn.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-border)}
+  .spacer{flex:1}
+  .hint{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+  .kbd{
+    font:600 10px var(--mono);color:var(--text-2);
+    background:var(--surface-2);border:1px solid var(--border);
+    border-bottom-width:2px;border-radius:5px;padding:2px 6px;
+  }
+
+  /* ---------- 屏幕容器 ---------- */
+  .screen{display:none;padding:76px 28px 60px}
+  .screen.on{display:block;animation:fade .28s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- 通用玻璃面板 ---------- */
+  .glass{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--r-md);
+    backdrop-filter:blur(var(--blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.4);
+    box-shadow:var(--shadow);
+  }
+
+  /* ============================================================
+     页面 0 · 设计规范
+     ============================================================ */
+  .sec-head{max-width:1180px;margin:0 auto 34px}
+  .sec-head h1{font-size:30px;font-weight:700;letter-spacing:-.3px}
+  .sec-head h1 span{color:var(--accent)}
+  .sec-head p{color:var(--text-2);font-size:14px;margin-top:10px;max-width:720px;line-height:1.75}
+  .tokens{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+  .tcard{
+    grid-column:span 4;padding:20px;border-radius:var(--r-lg);
+    background:var(--surface);border:1px solid var(--border);
+    backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  }
+  .tcard.wide{grid-column:span 8}
+  .tcard h3{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:var(--text-1)}
+  .tcard h3 svg{width:15px;height:15px;color:var(--accent)}
+  .swatches{display:flex;gap:12px;flex-wrap:wrap}
+  .sw{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .sw .chip{width:52px;height:52px;border-radius:14px;border:1px solid var(--border-2);box-shadow:var(--shadow-sm)}
+  .sw small{font-size:10.5px;color:var(--text-3);font-family:var(--mono)}
+  .sw b{font-size:11.5px;font-weight:600;color:var(--text-2)}
+  .typespec{display:flex;flex-direction:column;gap:14px}
+  .type-row{display:flex;align-items:baseline;gap:16px}
+  .type-row .tt{width:44px;font-family:var(--mono);font-size:11px;color:var(--accent)}
+  .type-row .tx{flex:1}
+  .type-row .tx b{display:block;font-weight:600}
+  .type-row .tx small{color:var(--text-3);font-size:11px;letter-spacing:.2px}
+  .sizers{display:flex;gap:10px;flex-wrap:wrap}
+  .sizer{width:44px;height:44px;border-radius:12px;border:1px solid var(--border-2);background:var(--surface-2);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--text-2)}
+  .principles{display:flex;flex-direction:column;gap:13px}
+  .principle{display:flex;gap:12px;align-items:flex-start}
+  .principle .n{
+    flex:none;width:24px;height:24px;border-radius:8px;background:var(--accent-soft);
+    color:var(--accent);font:700 12px var(--font);display:grid;place-items:center;
+  }
+  .principle b{font-size:13px}
+  .principle p{font-size:12px;color:var(--text-2);line-height:1.6;margin-top:3px}
+
+  /* ============================================================
+     页面 1 · 桌面主界面
+     ============================================================ */
+  .stage{
+    position:relative;max-width:1360px;margin:0 auto;
+    aspect-ratio:16/9;border-radius:var(--r-lg);overflow:hidden;
+    border:1px solid var(--border-2);
+    box-shadow:var(--shadow);
+    background:
+      radial-gradient(900px 500px at 78% 8%, rgba(124,92,255,.20), transparent 60%),
+      radial-gradient(800px 500px at 12% 92%, rgba(61,123,255,.16), transparent 60%),
+      linear-gradient(165deg,#141B2B 0%, #1B2336 45%, #2A3249 100%);
+  }
+  .stage .stars{position:absolute;inset:0;pointer-events:none}
+  .stage .stars i{
+    position:absolute;width:2px;height:2px;border-radius:50%;
+    background:rgba(255,255,255,.5);animation:twinkle 4s ease-in-out infinite;
+  }
+  @keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.8}}
+
+  /* 桌面组件 */
+  .desk{position:absolute;inset:0}
+  .panel{
+    position:absolute;border-radius:var(--r-md);padding:14px;
+    background:linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.05));
+    border:1px solid var(--border);
+    box-shadow:var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.10);
+    backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
+  }
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .panel-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+  .panel-title svg{width:14px;height:14px;color:var(--accent)}
+  .panel-actions{display:flex;gap:6px}
+  .icon-btn{
+    width:24px;height:24px;border-radius:7px;border:none;background:transparent;
+    color:var(--text-3);cursor:pointer;display:grid;place-items:center;transition:all .16s;
+  }
+  .icon-btn:hover{background:var(--surface-3);color:var(--text-1)}
+  .icon-btn svg{width:13px;height:13px}
+  /* 图标网格 */
+  .igrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 10px}
+  .icell{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:8px 4px 6px;border-radius:var(--r-sm);cursor:pointer;transition:background .16s;
+  }
+  .icell:hover{background:var(--surface-3)}
+  .icell .tile{
+    width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(160deg, rgba(91,156,255,.24), rgba(91,156,255,.06));
+    border:1px solid var(--accent-border);color:var(--accent);
+    box-shadow:0 4px 12px rgba(0,0,0,.25);
+  }
+  .icell .tile svg{width:20px;height:20px}
+  .icell small{font-size:10.5px;color:var(--text-1);text-shadow:0 1px 3px rgba(0,0,0,.6);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 标签组件 */
+  .tabs{display:flex;gap:4px;background:rgba(0,0,0,.22);padding:4px;border-radius:10px;margin-bottom:12px}
+  .tab{
+    flex:1;text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);
+    padding:5px 0;border-radius:7px;cursor:pointer;transition:all .16s;
+  }
+  .tab.on{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-border)}
+  /* 分类列表 */
+  .list{display:flex;flex-direction:column;gap:2px}
+  .lrow{
+    display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;
+    cursor:pointer;transition:background .14s;font-size:11.5px;
+  }
+  .lrow:hover{background:var(--surface-3)}
+  .lrow .tile{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border)}
+  .lrow .tile svg{width:15px;height:15px;color:var(--text-2)}
+  .lrow .cnt{margin-left:auto;font-size:10.5px;color:var(--text-3);font-family:var(--mono)}
+  /* 小部件 */
+  .widget-clock{position:absolute;font-variant-numeric:tabular-nums}
+  .widget-clock .t{font-size:44px;font-weight:300;letter-spacing:-1px;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+  .widget-clock .d{font-size:12px;color:var(--text-2);margin-top:2px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+  .cal .dow{font-size:9px;color:var(--text-3);padding:2px 0}
+  .cal .day{font-size:11px;padding:4px 0;border-radius:7px;color:var(--text-2)}
+  .cal .day.today{background:var(--accent);color:#0B0F17;font-weight:700}
+  .cal .day.dim{color:var(--text-3);opacity:.5}
+
+  /* 分页指示器（重设计：胶囊 + 缩放圆点 + 工具提示） */
+  .dots{
+    position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:0;padding:8px 12px;border-radius:99px;
+    background:rgba(12,16,26,.5);
+    border:1px solid var(--border);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:rgba(242,246,252,.42);margin:0 4px;transition:all .22s cubic-bezier(.34,1.56,.64,1);cursor:pointer}
+  .dot.on{width:26px;border-radius:99px;background:var(--accent);box-shadow:0 0 10px rgba(91,156,255,.7)}
+  .dot:hover{transform:scale(1.35);background:rgba(242,246,252,.85)}
+  .dot-tip{
+    position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);
+    padding:5px 11px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap;
+    background:rgba(10,13,22,.92);border:1px solid var(--accent-border);
+    box-shadow:var(--shadow-sm);pointer-events:none;
+  }
+  .dot-tip::after{
+    content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:rgba(10,13,22,.92);
+  }
+  /* 翻页箭头 */
+  .navarrow{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:40px;height:92px;border-radius:12px;display:grid;place-items:center;
+    background:rgba(255,255,255,.06);border:1px solid var(--border);
+    color:var(--text-2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    opacity:0;transition:opacity .2s ease, background .16s;
+  }
+  .navarrow:hover{background:var(--accent-soft);color:var(--accent)}
+  .navarrow svg{width:20px;height:20px}
+  .navarrow.l{left:14px}.navarrow.r{right:14px}
+  .stage:hover .navarrow{opacity:1}
+  /* 重命名编辑框 */
+  .rename{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    padding:6px 10px;width:200px;border-radius:9px;
+    background:rgba(10,13,22,.95);border:1px solid var(--accent-border);
+    color:var(--text-1);font:600 12px var(--font);
+    box-shadow:var(--shadow);outline:none;
+  }
+  .rename::placeholder{color:var(--text-3)}
+  /* 场景内说明气泡 */
+  .stage-note{
+    position:absolute;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:500;
+    background:rgba(10,13,22,.72);border:1px dashed rgba(245,183,89,.5);color:#F5D9A8;
+    backdrop-filter:blur(6px);pointer-events:none;line-height:1.5;
+  }
+
+  /* ============================================================
+     页面 2 · Dock
+     ============================================================ */
+  .dockstage{
+    position:relative;max-width:1360px;margin:0 auto;
+    aspect-ratio:16/9;border-radius:var(--r-lg);overflow:hidden;
+    border:1px solid var(--border-2);box-shadow:var(--shadow);
+    background:
+      radial-gradient(900px 520px at 20% 20%, rgba(52,211,153,.10), transparent 55%),
+      radial-gradient(800px 480px at 85% 90%, rgba(124,92,255,.14), transparent 55%),
+      linear-gradient(160deg,#111726 0%,#1A2133 60%,#202A41 100%);
+  }
+  .dock{
+    position:absolute;left:50%;bottom:34px;transform:translateX(-50%);
+    display:flex;align-items:flex-end;gap:8px;padding:12px 14px;
+    border-radius:22px;
+    background:rgba(20,26,40,.5);
+    border:1px solid var(--border-2);
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12);
+    backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);
+  }
+  .dicon{
+    position:relative;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;
+    background:linear-gradient(160deg,var(--surface-3),var(--surface));
+    border:1px solid var(--border);
+    cursor:pointer;transition:transform .24s cubic-bezier(.34,1.4,.64,1);
+  }
+  .dock .dicon:hover{transform:translateY(-8px) scale(1.16)}
+  .dock .dicon.zoom1{transform:translateY(-12px) scale(1.30);background:var(--accent-soft);border-color:var(--accent-border)}
+  .dicon svg{width:24px;height:24px;color:var(--text-1)}
+  .dicon.running::after{
+    content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);
+    width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(91,156,255,.8);
+  }
+  .dicon .tri{
+    position:absolute;top:-7px;left:50%;transform:translateX(-50%);
+    width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
+    border-bottom:7px solid var(--accent);filter:drop-shadow(0 1px 3px rgba(91,156,255,.6));
+  }
+  .ddivider{width:1px;height:38px;background:var(--border-2);margin:6px 2px}
+  .dtip{
+    position:absolute;bottom:calc(100% + 14px);left:50%;transform:translateX(-50%);
+    padding:5px 11px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap;
+    background:rgba(10,13,22,.94);border:1px solid var(--border-2);
+    box-shadow:var(--shadow-sm);pointer-events:none;display:none;
+  }
+  .dicon:hover .dtip{display:block}
+  .dtip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:rgba(10,13,22,.94)}
+
+  /* ============================================================
+     页面 3 · 悬浮 Dock
+     ============================================================ */
+  .floatdock{
+    position:absolute;left:50%;bottom:40px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:9px;padding:11px 15px;border-radius:18px;
+    background:rgba(20,26,40,.42);
+    border:1px solid var(--border-2);
+    box-shadow:0 20px 55px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
+    backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
+  }
+  .fdicon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(160deg,var(--surface-3),var(--surface));border:1px solid var(--border);cursor:pointer;transition:transform .2s}
+  .fdicon:hover{transform:translateY(-4px) scale(1.12)}
+  .fdicon svg{width:20px;height:20px;color:var(--text-1)}
+  .fdicon.on{background:var(--accent-soft);border-color:var(--accent-border)}
+  .fdicon.on svg{color:var(--accent)}
+
+  /* ============================================================
+     页面 4 · 右键菜单
+     ============================================================ */
+  .menustage{
+    position:relative;max-width:760px;margin:0 auto;min-height:560px;
+    display:flex;align-items:flex-start;justify-content:center;padding-top:70px;
+  }
+  .ctxmenu{
+    width:248px;padding:7px;border-radius:14px;
+    background:rgba(22,28,42,.78);
+    border:1px solid var(--border-2);
+    box-shadow:0 22px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
+    backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
+    animation:pop .18s cubic-bezier(.2,1.2,.4,1);
+  }
+  @keyframes pop{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:none}}
+  .mi{
+    display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:9px;
+    font-size:12.5px;color:var(--text-1);cursor:pointer;transition:background .13s;position:relative;
+  }
+  .mi svg{width:15px;height:15px;color:var(--text-2);flex:none}
+  .mi:hover{background:var(--accent-soft);color:var(--accent)}
+  .mi:hover svg{color:var(--accent)}
+  .mi .acc{margin-left:auto;font-size:10.5px;color:var(--text-3)}
+  .mi.danger{color:var(--danger)}
+  .mi.danger svg{color:var(--danger)}
+  .mi.danger:hover{background:rgba(248,113,113,.12)}
+  .msplit{height:1px;background:var(--border);margin:5px 8px}
+  .mi .sub-arrow{margin-left:auto;color:var(--text-3)}
+  .submenu{
+    position:absolute;left:calc(100% - 4px);top:-4px;width:200px;padding:7px;border-radius:12px;
+    background:rgba(24,30,46,.88);border:1px solid var(--border-2);
+    box-shadow:0 18px 48px rgba(0,0,0,.55);backdrop-filter:blur(20px);
+    display:none;
+  }
+  .mi.has-sub:hover .submenu{display:block}
+
+  /* ============================================================
+     页面 5 · 设置窗口
+     ============================================================ */
+  .settingswin{
+    max-width:1060px;margin:0 auto;border-radius:var(--r-lg);overflow:hidden;
+    display:flex;min-height:640px;
+    background:rgba(17,22,34,.72);
+    border:1px solid var(--border-2);
+    box-shadow:0 34px 90px rgba(0,0,0,.6);
+    backdrop-filter:blur(26px) saturate(1.4);-webkit-backdrop-filter:blur(26px) saturate(1.4);
+  }
+  .titlebar{
+    position:absolute;top:0;left:0;right:0;height:38px;
+    display:flex;align-items:center;padding:0 12px;gap:10px;
+    border-bottom:1px solid var(--border);background:rgba(11,15,23,.5);
+  }
+  .titlebar .t-drag{flex:1;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-3)}
+  .wctrl{display:flex;gap:4px}
+  .wbtn{
+    width:30px;height:22px;border-radius:6px;display:grid;place-items:center;
+    background:transparent;border:none;color:var(--text-3);cursor:pointer;
+  }
+  .wbtn:hover{background:var(--surface-3);color:var(--text-1)}
+  .wbtn.close:hover{background:rgba(248,113,113,.85);color:#fff}
+  .wbtn svg{width:11px;height:11px}
+  .settingswin .side{
+    width:212px;flex:none;padding:16px 10px;border-right:1px solid var(--border);
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .side-group{font-size:10px;letter-spacing:1.2px;color:var(--text-3);padding:12px 12px 5px;font-weight:700}
+  .side-item{
+    display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;
+    font-size:12.5px;color:var(--text-2);cursor:pointer;transition:all .15s;
+  }
+  .side-item svg{width:15px;height:15px;color:var(--text-3)}
+  .side-item:hover{background:var(--surface-2);color:var(--text-1)}
+  .side-item.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .side-item.on svg{color:var(--accent)}
+  .settingswin .body{flex:1;padding:26px 30px;position:relative;overflow:hidden}
+  .body-title{font-size:17px;font-weight:700;margin-bottom:4px}
+  .body-sub{font-size:12px;color:var(--text-3);margin-bottom:20px}
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+    padding:18px;margin-bottom:16px;
+  }
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .card-head b{font-size:13px;font-weight:600}
+  .card-head small{color:var(--text-3);font-size:11px}
+  /* 分段控件 */
+  .seg{display:inline-flex;gap:3px;background:rgba(0,0,0,.25);padding:3px;border-radius:10px}
+  .seg button{
+    padding:7px 14px;border-radius:8px;border:none;background:transparent;
+    font:600 12px var(--font);color:var(--text-2);cursor:pointer;transition:all .16s;
+  }
+  .seg button.on{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-border)}
+  /* 色板 */
+  .pal{display:flex;gap:10px;margin-top:12px}
+  .pal .p{width:34px;height:34px;border-radius:10px;cursor:pointer;position:relative;border:1px solid var(--border-2);transition:transform .16s}
+  .pal .p:hover{transform:scale(1.12)}
+  .pal .p.on::after{
+    content:"";position:absolute;inset:-4px;border-radius:13px;
+    border:2px solid var(--accent);opacity:.9;
+  }
+  /* 开关 */
+  .switch{position:relative;width:40px;height:23px;flex:none;cursor:pointer}
+  .switch input{display:none}
+  .switch .tr{position:absolute;inset:0;border-radius:99px;background:rgba(255,255,255,.14);transition:background .2s}
+  .switch .tr::before{
+    content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;
+    background:#E8EDF7;transition:transform .2s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 5px rgba(0,0,0,.35);
+  }
+  .switch input:checked + .tr{background:var(--accent)}
+  .switch input:checked + .tr::before{transform:translateX(17px)}
+  /* 滑块 */
+  .slider-row{display:flex;align-items:center;gap:14px;margin-top:12px}
+  .slider-row label{font-size:12px;color:var(--text-2);width:84px;flex:none}
+  .slider-row .val{font:600 11px var(--mono);color:var(--text-2);width:40px;text-align:right}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:99px;
+    background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--fill,50%),rgba(255,255,255,.14) var(--fill,50%));
+    outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+  /* 布局行 */
+  .frow{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+  .frow:last-child{border-bottom:none}
+  .frow .fl b{display:block;font-size:12.5px;font-weight:500}
+  .frow .fl small{color:var(--text-3);font-size:11px}
+  .frow .fr{display:flex;align-items:center;gap:12px}
+  .pill{
+    font:600 11px var(--font);color:var(--text-2);background:var(--surface-2);
+    border:1px solid var(--border);padding:5px 10px;border-radius:8px;
+  }
+  .dots-preview{
+    display:flex;align-items:center;justify-content:center;gap:0;
+    padding:12px;border-radius:99px;background:rgba(0,0,0,.22);
+    border:1px solid var(--border);width:fit-content;
+  }
+  .dp{width:7px;height:7px;border-radius:50%;background:rgba(242,246,252,.4);margin:0 3px}
+  .dp.on{width:22px;border-radius:99px;background:var(--accent)}
+
+  /* ============================================================
+     页面 6 · 快捷导航
+     ============================================================ */
+  .qnavstage{
+    position:relative;max-width:720px;margin:0 auto;min-height:600px;padding-top:90px;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  .qsearch{
+    width:100%;display:flex;align-items:center;gap:12px;
+    padding:16px 20px;border-radius:16px;
+    background:rgba(20,26,40,.72);
+    border:1px solid var(--accent-border);
+    box-shadow:0 20px 60px rgba(0,0,0,.5), 0 0 0 4px rgba(91,156,255,.08);
+    backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  }
+  .qsearch svg{width:19px;height:19px;color:var(--accent)}
+  .qsearch input{
+    flex:1;background:transparent;border:none;outline:none;
+    color:var(--text-1);font:500 15px var(--font);
+  }
+  .qsearch input::placeholder{color:var(--text-3)}
+  .qresults{
+    width:100%;margin-top:12px;padding:8px;border-radius:16px;
+    background:rgba(17,22,34,.78);border:1px solid var(--border-2);
+    box-shadow:var(--shadow);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  }
+  .qgroup{font-size:10px;letter-spacing:1.1px;color:var(--text-3);padding:10px 12px 6px;font-weight:700}
+  .qrow{
+    display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;
+    cursor:pointer;font-size:13px;transition:background .13s;
+  }
+  .qrow .tile{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border);flex:none}
+  .qrow .tile svg{width:16px;height:16px;color:var(--text-2)}
+  .qrow b{font-weight:600}
+  .qrow small{color:var(--text-3);font-size:11px;margin-left:8px}
+  .qrow .src{margin-left:auto;font-size:10px;color:var(--text-3)}
+  .qrow.on{background:var(--accent-soft)}
+  .qrow.on .tile{border-color:var(--accent-border);background:var(--accent-soft)}
+  .qrow.on .tile svg{color:var(--accent)}
+  .qhint{display:flex;gap:16px;margin-top:16px;font-size:11px;color:var(--text-3)}
+
+  @media(max-width:900px){
+    .tokens{grid-template-columns:1fr}
+    .tcard,.tcard.wide{grid-column:span 1}
+  }
+</style>
+</head>
+<body>
+
+<!-- ======= 隐藏 SVG 图标库 ======= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="i-folder"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></g>
+    <g id="i-file"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></g>
+    <g id="i-image"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></g>
+    <g id="i-video"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></g>
+    <g id="i-music"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></g>
+    <g id="i-code"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></g>
+    <g id="i-gear"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></g>
+    <g id="i-search"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></g>
+    <g id="i-window"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/></g>
+    <g id="i-start"><path d="M4 4l16 3-7 5 7 5-16 3 6-8z"/></g>
+    <g id="i-copy"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></g>
+    <g id="i-rename"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></g>
+    <g id="i-trash"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></g>
+    <g id="i-props"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></g>
+    <g id="i-plus"><path d="M12 5v14"/><path d="M5 12h14"/></g>
+    <g id="i-chev-l"><path d="M15 18l-6-6 6-6"/></g>
+    <g id="i-chev-r"><path d="M9 18l6-6-6-6"/></g>
+    <g id="i-clock"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></g>
+    <g id="i-cal"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/></g>
+    <g id="i-cpu"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2"/><path d="M15 2v2"/><path d="M9 20v2"/><path d="M15 20v2"/><path d="M2 9h2"/><path d="M2 15h2"/><path d="M20 9h2"/><path d="M20 15h2"/></g>
+    <g id="i-memory"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3"/><path d="M15 2v3"/><path d="M9 19v3"/><path d="M15 19v3"/><path d="M2 9h3"/><path d="M2 15h3"/><path d="M19 9h3"/><path d="M19 15h3"/></g>
+    <g id="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.9 4.9l1.4 1.4"/><path d="M17.7 17.7l1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.9 19.1l1.4-1.4"/><path d="M17.7 6.3l1.4-1.4"/></g>
+    <g id="i-moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></g>
+    <g id="i-home"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></g>
+    <g id="i-star"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></g>
+    <g id="i-layers"><path d="M12 2L2 7l10 5 10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/></g>
+    <g id="i-monitor"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></g>
+    <g id="i-palette"><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H16a5 5 0 0 0 5-5c0-4.9-4-8.7-9-8.7z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></g>
+    <g id="i-puzzle"><path d="M4 7h3V5a2 2 0 0 1 4 0v2h3a2 2 0 0 1 2 2v3h2a2 2 0 0 1 0 4h-2v3a2 2 0 0 1-2 2H4z" transform="translate(-1 -1)"/></g>
+    <g id="i-terminal"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></g>
+    <g id="i-info"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/></g>
+    <g id="i-refresh"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></g>
+    <g id="i-check"><path d="M20 6L9 17l-5-5"/></g>
+    <g id="i-x"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></g>
+    <g id="i-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></g>
+    <g id="i-apps"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g>
+    <g id="i-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></g>
+    <g id="i-chrome"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></g>
+    <g id="i-save"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></g>
+    <g id="i-edit"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></g>
+  </defs>
+</svg>
+
+<!-- ======= 顶部导航 ======= -->
+<nav class="topnav">
+  <div class="brand">
+    <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 3-7 5 7 5-16 3 6-8z"/></svg></span>
+    <div><b>SnowDesktop</b><small>界面重设计 · 交互原型</small></div>
+  </div>
+  <button class="navbtn active" data-s="overview">设计规范</button>
+  <button class="navbtn" data-s="desktop">桌面主界面</button>
+  <button class="navbtn" data-s="dock">Dock</button>
+  <button class="navbtn" data-s="floatdock">悬浮 Dock</button>
+  <button class="navbtn" data-s="menu">右键菜单</button>
+  <button class="navbtn" data-s="settings">设置窗口</button>
+  <button class="navbtn" data-s="quicknav">快捷导航</button>
+  <span class="spacer"></span>
+  <span class="hint">用 <span class="kbd">←</span> <span class="kbd">→</span> 切换页面</span>
+</nav>
+
+<!-- ============================================================
+     页面 0 · 设计规范
+     ============================================================ -->
+<section class="screen on" id="overview">
+  <div class="sec-head">
+    <h1>重新设计 · <span>Glass 毛玻璃系统</span></h1>
+    <p>以「毛玻璃 + 简约瑞士风格」重建整套视觉语言：深空蓝黑底、精炼蓝强调色、统一圆角与间距刻度、克制的辉光与微交互。所有面板复用同一套材质令牌，让桌面、Dock、菜单与设置窗口观感一致。</p>
+  </div>
+  <div class="tokens">
+    <div class="tcard wide">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>色彩令牌</h3>
+      <div class="swatches">
+        <div class="sw"><span class="chip" style="background:#0B0F17"></span><b>深空底</b><small>#0B0F17</small></div>
+        <div class="sw"><span class="chip" style="background:#1B2336"></span><b>面板底</b><small>#1B2336</small></div>
+        <div class="sw"><span class="chip" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14)"></span><b>玻璃层</b><small>rgba(255,255,255,.06)</small></div>
+        <div class="sw"><span class="chip" style="background:#5B9CFF"></span><b>强调色</b><small>#5B9CFF</small></div>
+        <div class="sw"><span class="chip" style="background:#7C5CFF"></span><b>渐变辅</b><small>#7C5CFF</small></div>
+        <div class="sw"><span class="chip" style="background:#34D399"></span><b>成功</b><small>#34D399</small></div>
+        <div class="sw"><span class="chip" style="background:#F5B759"></span><b>警示</b><small>#F5B759</small></div>
+        <div class="sw"><span class="chip" style="background:#F87171"></span><b>危险</b><small>#F87171</small></div>
+        <div class="sw"><span class="chip" style="background:#F2F6FC"></span><b>主文本</b><small>#F2F6FC</small></div>
+        <div class="sw"><span class="chip" style="background:#A6B0C3"></span><b>次文本</b><small>#A6B0C3</small></div>
+        <div class="sw"><span class="chip" style="background:#66718A"></span><b>弱文本</b><small>#66718A</small></div>
+      </div>
+    </div>
+    <div class="tcard">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>字体</h3>
+      <div class="typespec">
+        <div class="type-row"><span class="tt">40</span><div class="tx"><b style="font-size:40px;font-weight:200;line-height:1">时钟 09:41</b></div></div>
+        <div class="type-row"><span class="tt">17</span><div class="tx"><b style="font-size:17px">设置 · 页面标题</b><small>SEGOE UI VARIABLE / 700</small></div></div>
+        <div class="type-row"><span class="tt">13</span><div class="tx"><b style="font-size:13px;font-weight:600">组件标题与强调文本</b><small>600 / 500</small></div></div>
+        <div class="type-row"><span class="tt">12</span><div class="tx"><b style="font-size:12px;font-weight:400;color:var(--text-2)">正文与说明文字，行高 1.6</b><small>400 / 45% 亮度</small></div></div>
+      </div>
+    </div>
+    <div class="tcard">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>圆角 · 间距</h3>
+      <div class="sizers" style="margin-bottom:14px">
+        <span class="sizer" style="border-radius:18px">18</span>
+        <span class="sizer" style="border-radius:13px">13</span>
+        <span class="sizer" style="border-radius:9px">9</span>
+        <span class="sizer" style="border-radius:7px">7</span>
+        <span class="sizer" style="border-radius:50%">∞</span>
+      </div>
+      <div class="typespec">
+        <div class="type-row"><span class="tt">4px</span><div class="tx"><small>图标内边距 · 最小留白</small></div></div>
+        <div class="type-row"><span class="tt">8px</span><div class="tx"><small>元素间距 · 列表行距</small></div></div>
+        <div class="type-row"><span class="tt">12px</span><div class="tx"><small>面板内边距 · 网格间隙</small></div></div>
+        <div class="type-row"><span class="tt">24px</span><div class="tx"><small>大区块 · 圆点胶囊留白</small></div></div>
+      </div>
+    </div>
+    <div class="tcard">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>设计原则</h3>
+      <div class="principles">
+        <div class="principle"><span class="n">1</span><div><b>统一材质</b><p>桌面组件、Dock、菜单、设置窗口共享同一套玻璃令牌，杜绝「每个界面各画各的」。</p></div></div>
+        <div class="principle"><span class="n">2</span><div><b>减少层级噪声</b><p>弱化边框与底色，用 1px 高光 + 阴影表达层级，避免深色叠深色。</p></div></div>
+        <div class="principle"><span class="n">3</span><div><b>克制的强调色</b><p>蓝色只用于「当前态 / 可交互 / 提示」，不参与大面积填充。</p></div></div>
+        <div class="principle"><span class="n">4</span><div><b>微交互有意图</b><p>悬停放大、圆点弹跳、菜单弹出等动效均带缓动曲线，时长 150–250ms。</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 1 · 桌面主界面
+     ============================================================ -->
+<section class="screen" id="desktop">
+  <div class="sec-head">
+    <h1>桌面主界面</h1>
+    <p>集合 / 集合组 / 文件分类面板统一为低饱和玻璃材质；图标改为圆角色板 + 柔和蓝光；分页指示器为胶囊式「缩放圆点」，悬停显示页面名。</p>
+  </div>
+  <div class="stage">
+    <div class="stars">
+      <i style="left:8%;top:14%"></i><i style="left:22%;top:6%"></i><i style="left:41%;top:18%"></i>
+      <i style="left:63%;top:9%"></i><i style="left:79%;top:16%"></i><i style="left:91%;top:8%"></i>
+      <i style="left:15%;top:30%"></i><i style="left:55%;top:26%"></i><i style="left:88%;top:32%"></i>
+    </div>
+    <div class="desk">
+      <!-- 集合面板：工作 -->
+      <div class="panel" style="left:30px;top:26px;width:248px">
+        <div class="panel-head">
+          <span class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-layers"/></svg>工作</span>
+          <span class="panel-actions">
+            <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></button>
+            <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-edit"/></svg></button>
+          </span>
+        </div>
+        <div class="igrid">
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg></span><small>项目资料</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file"/></svg></span><small>需求文档</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-code"/></svg></span><small>代码</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-monitor"/></svg></span><small>设计稿</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-image"/></svg></span><small>素材</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-save"/></svg></span><small>报表</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-terminal"/></svg></span><small>脚本</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-download"/></svg></span><small>下载</small></div>
+        </div>
+      </div>
+
+      <!-- 集合组（标签页） -->
+      <div class="panel" style="left:30px;bottom:96px;width:248px">
+        <div class="panel-head">
+          <span class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-apps"/></svg>常用应用</span>
+          <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></button>
+        </div>
+        <div class="tabs">
+          <div class="tab on">工作</div><div class="tab">娱乐</div><div class="tab">工具</div>
+        </div>
+        <div class="igrid">
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chrome"/></svg></span><small>浏览器</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-window"/></svg></span><small>文档</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-terminal"/></svg></span><small>终端</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cpu"/></svg></span><small>监控</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-image"/></svg></span><small>设计</small></div>
+          <div class="icell"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-music"/></svg></span><small>音乐</small></div>
+        </div>
+      </div>
+
+      <!-- 文件分类面板 -->
+      <div class="panel" style="right:30px;top:26px;width:230px">
+        <div class="panel-head">
+          <span class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg>桌面分类</span>
+          <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg></button>
+        </div>
+        <div class="list">
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-image"/></svg></span>图片<span class="cnt">24</span></div>
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file"/></svg></span>文档<span class="cnt">18</span></div>
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-video"/></svg></span>视频<span class="cnt">7</span></div>
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-download"/></svg></span>下载<span class="cnt">12</span></div>
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-code"/></svg></span>代码<span class="cnt">5</span></div>
+          <div class="lrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg></span>文件夹<span class="cnt">9</span></div>
+        </div>
+      </div>
+
+      <!-- 小部件：时钟 + 日历 -->
+      <div class="panel" style="right:30px;top:300px;width:230px">
+        <div class="widget-clock">
+          <div class="t">09:41</div>
+          <div class="d">8 月 25 日 · 星期二</div>
+        </div>
+      </div>
+      <div class="panel" style="right:30px;bottom:96px;width:230px">
+        <div class="panel-head">
+          <span class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cal"/></svg>8 月</span>
+        </div>
+        <div class="cal">
+          <span class="dow">一</span><span class="dow">二</span><span class="dow">三</span><span class="dow">四</span><span class="dow">五</span><span class="dow">六</span><span class="dow">日</span>
+          <span class="day dim">28</span><span class="day dim">29</span><span class="day dim">30</span><span class="day dim">31</span>
+          <span class="day">1</span><span class="day">2</span><span class="day">3</span>
+          <span class="day">4</span><span class="day">5</span><span class="day">6</span><span class="day">7</span><span class="day">8</span><span class="day">9</span><span class="day">10</span>
+          <span class="day">11</span><span class="day">12</span><span class="day">13</span><span class="day">14</span><span class="day">15</span><span class="day">16</span><span class="day">17</span>
+          <span class="day">18</span><span class="day">19</span><span class="day">20</span><span class="day">21</span><span class="day">22</span><span class="day">23</span><span class="day">24</span>
+          <span class="day today">25</span><span class="day">26</span><span class="day">27</span><span class="day">28</span><span class="day">29</span><span class="day">30</span><span class="day">31</span>
+          <span class="day dim">1</span><span class="day dim">2</span><span class="day dim">3</span><span class="day dim">4</span><span class="day dim">5</span><span class="day dim">6</span>
+        </div>
+      </div>
+
+      <!-- 翻页箭头 -->
+      <span class="navarrow l"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev-l"/></svg></span>
+      <span class="navarrow r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev-r"/></svg></span>
+
+      <!-- 分页指示器 -->
+      <div class="dots">
+        <div class="dot-tip" id="dotTip">工作区 1</div>
+        <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+
+      <!-- 场景说明 -->
+      <span class="stage-note" style="left:290px;top:60px">统一玻璃材质<br>图标圆角色板 + 柔和蓝光</span>
+      <span class="stage-note" style="left:290px;bottom:150px">标签式集合组<br>胶囊内嵌选中态</span>
+      <span class="stage-note" style="right:270px;top:120px">分类列表<br>图标 + 数量</span>
+      <span class="stage-note" style="right:270px;top:380px">信息小部件<br>低对比排版</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 2 · Dock
+     ============================================================ -->
+<section class="screen" id="dock">
+  <div class="sec-head">
+    <h1>Dock</h1>
+    <p>毛玻璃岛式 Dock：图标悬停向上放大并出现名称气泡，运行中的应用以蓝色圆点标识，当前激活项顶部显示蓝色三角指示。</p>
+  </div>
+  <div class="dockstage">
+    <div class="stars">
+      <i style="left:12%;top:10%"></i><i style="left:34%;top:22%"></i><i style="left:58%;top:8%"></i>
+      <i style="left:80%;top:18%"></i><i style="left:92%;top:34%"></i><i style="left:24%;top:36%"></i>
+    </div>
+    <div class="dock">
+      <span class="dicon" style="background:linear-gradient(135deg,#5B9CFF,#7C5CFF);border:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-start"/></svg>
+        <span class="dtip">开始</span>
+      </span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg><span class="dtip">快捷搜索</span></span>
+      <span class="dicon zoom1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chrome"/></svg><span class="dtip">浏览器</span></span>
+      <span class="dicon running"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-window"/></svg><span class="dtip">文档</span></span>
+      <span class="dicon running"><span class="tri"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-terminal"/></svg><span class="dtip">终端</span></span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-music"/></svg><span class="dtip">音乐</span></span>
+      <span class="dicon running"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-image"/></svg><span class="dtip">设计</span></span>
+      <span class="ddivider"></span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg><span class="dtip">文件夹栈</span></span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-apps"/></svg><span class="dtip">集合</span></span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-monitor"/></svg><span class="dtip">任务视图</span></span>
+      <span class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-trash"/></svg><span class="dtip">回收站</span></span>
+    </div>
+    <span class="stage-note" style="left:32px;top:150px">岛式悬浮 · 底部 34px<br>毛玻璃 24px 模糊 + 饱和度增强</span>
+    <span class="stage-note" style="right:32px;top:120px">运行中 · 蓝色圆点<br>激活项 · 蓝色三角指示</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 3 · 悬浮 Dock
+     ============================================================ -->
+<section class="screen" id="floatdock">
+  <div class="sec-head">
+    <h1>悬浮 Dock</h1>
+    <p>紧凑玻璃条，由快捷键或屏幕边缘手势唤起；当前激活项以蓝色强调，其余保持低对比，避免视觉负担。</p>
+  </div>
+  <div class="dockstage">
+    <div class="stars">
+      <i style="left:18%;top:16%"></i><i style="left:46%;top:6%"></i><i style="left:72%;top:24%"></i>
+      <i style="left:88%;top:10%"></i><i style="left:32%;top:40%"></i>
+    </div>
+    <div class="floatdock">
+      <span class="fdicon on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chrome"/></svg></span>
+      <span class="fdicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-window"/></svg></span>
+      <span class="fdicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-terminal"/></svg></span>
+      <span class="fdicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-music"/></svg></span>
+      <span class="fdicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg></span>
+      <span class="fdicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg></span>
+    </div>
+    <span class="stage-note" style="left:50%;top:170px;transform:translateX(-50%)">唤出时从底部滑入<br>收起时淡出 · 自动隐藏</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 4 · 右键菜单
+     ============================================================ -->
+<section class="screen" id="menu">
+  <div class="sec-head">
+    <h1>右键菜单</h1>
+    <p>毛玻璃浮层菜单：Fluent 线性图标 + 分组分割线 + 危险操作红色语义；二级菜单悬停侧向展开。</p>
+  </div>
+  <div class="menustage">
+    <div class="ctxmenu">
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg>打开<span class="acc">Enter</span></div>
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg>在 Everything 中搜索</div>
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-copy"/></svg>复制<span class="acc">Ctrl+C</span></div>
+      <div class="mi has-sub">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg>发送到<span class="sub-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><use href="#i-chev-r"/></svg></span>
+        <div class="submenu">
+          <div class="mi">压缩为 ZIP</div>
+          <div class="mi">邮件收件人</div>
+          <div class="mi">桌面快捷方式</div>
+        </div>
+      </div>
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-rename"/></svg>重命名<span class="acc">F2</span></div>
+      <div class="msplit"></div>
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-props"/></svg>属性</div>
+      <div class="mi danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-trash"/></svg>删除<span class="acc">Del</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 5 · 设置窗口
+     ============================================================ -->
+<section class="screen" id="settings">
+  <div class="sec-head">
+    <h1>设置窗口</h1>
+    <p>重绘 ImGui 设置界面：左侧图标导航 + 右侧卡片化表单。分段控件、开关、滑块全部统一为毛玻璃风格。</p>
+  </div>
+  <div class="settingswin" style="position:relative">
+    <div class="titlebar">
+      <div class="t-drag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><use href="#i-star"/></svg>飘雪桌面 · 设置</div>
+      <div class="wctrl">
+        <button class="wbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <button class="wbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
+        <button class="wbtn close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="side-group">常规</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-gear"/></svg>通用</div>
+      <div class="side-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-palette"/></svg>个性化</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-monitor"/></svg>显示</div>
+      <div class="side-group">组件</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-layers"/></svg>桌面组件</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-apps"/></svg>Dock</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-puzzle"/></svg>小组件</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg>分类</div>
+      <div class="side-group">其他</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-terminal"/></svg>调试</div>
+      <div class="side-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-info"/></svg>关于</div>
+    </div>
+
+    <div class="body">
+      <div class="body-title">个性化</div>
+      <div class="body-sub">调整桌面组件、Dock 与全局外观</div>
+
+      <!-- 外观预设 -->
+      <div class="card">
+        <div class="card-head"><b>外观预设</b><small>实时预览到桌面</small></div>
+        <div class="seg">
+          <button>深色</button><button>浅色</button><button class="on">毛玻璃</button><button>亚克力</button>
+        </div>
+        <div class="pal">
+          <span class="p on" style="background:#5B9CFF"></span>
+          <span class="p" style="background:#8B5CF6"></span>
+          <span class="p" style="background:#2DD4BF"></span>
+          <span class="p" style="background:#34D399"></span>
+          <span class="p" style="background:#F5B759"></span>
+          <span class="p" style="background:#F87171"></span>
+        </div>
+      </div>
+
+      <!-- 组件外观 -->
+      <div class="card">
+        <div class="card-head"><b>组件外观</b></div>
+        <div class="slider-row">
+          <label>圆角半径</label>
+          <input type="range" min="0" max="28" value="13" style="--fill:46%"><span class="val">13px</span>
+        </div>
+        <div class="slider-row">
+          <label>背景透明</label>
+          <input type="range" min="0" max="100" value="62" style="--fill:62%"><span class="val">62%</span>
+        </div>
+        <div class="slider-row">
+          <label>模糊强度</label>
+          <input type="range" min="0" max="48" value="24" style="--fill:50%"><span class="val">24px</span>
+        </div>
+        <div class="frow" style="margin-top:8px">
+          <div class="fl"><b>玻璃边缘高光</b><small>内描边 1px 白色高光</small></div>
+          <span class="fr"><span class="switch"><input type="checkbox" checked><span class="tr"></span></span></span>
+        </div>
+      </div>
+
+      <!-- 分页指示器 -->
+      <div class="card">
+        <div class="card-head"><b>分页指示器</b><small>常驻圆点 · 点击跳页</small></div>
+        <div class="dots-preview"><span class="dp on"></span><span class="dp"></span><span class="dp"></span><span class="dp"></span></div>
+        <div class="slider-row">
+          <label>圆点大小</label>
+          <input type="range" min="4" max="14" value="9" style="--fill:50%"><span class="val">9px</span>
+        </div>
+        <div class="slider-row">
+          <label>间距</label>
+          <input type="range" min="4" max="20" value="10" style="--fill:38%"><span class="val">10px</span>
+        </div>
+        <div class="frow" style="margin-top:8px">
+          <div class="fl"><b>悬停显示页面名</b></div>
+          <span class="fr"><span class="switch"><input type="checkbox" checked><span class="tr"></span></span></span>
+        </div>
+      </div>
+
+      <!-- 其他选项 -->
+      <div class="card">
+        <div class="frow">
+          <div class="fl"><b>开机自启</b><small>登录时启动飘雪桌面</small></div>
+          <span class="fr"><span class="switch"><input type="checkbox"><span class="tr"></span></span></span>
+        </div>
+        <div class="frow">
+          <div class="fl"><b>跟随系统主题</b><small>自动切换深 / 浅色</small></div>
+          <span class="fr"><span class="switch"><input type="checkbox"><span class="tr"></span></span></span>
+        </div>
+        <div class="frow">
+          <div class="fl"><b>布局备份</b></div>
+          <span class="fr"><span class="pill">立即备份</span><span class="pill">恢复</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     页面 6 · 快捷导航
+     ============================================================ -->
+<section class="screen" id="quicknav">
+  <div class="sec-head">
+    <h1>快捷导航</h1>
+    <p>居中搜索浮层：按「桌面 / 映射 / Dock」来源分组，键盘方向键选择、回车启动，蓝色高亮当前项。</p>
+  </div>
+  <div class="qnavstage">
+    <div class="qsearch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg>
+      <input placeholder="搜索桌面项目、应用与文件…" value="报">
+      <span class="kbd">Esc</span>
+    </div>
+    <div class="qresults">
+      <div class="qgroup">桌面</div>
+      <div class="qrow on"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file"/></svg></span><div><b>报表 Q3</b><small>.xlsx</small></div><span class="src">桌面</span></div>
+      <div class="qrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-file"/></svg></span><div><b>月度报告</b><small>.docx</small></div><span class="src">桌面</span></div>
+      <div class="qgroup">映射文件夹</div>
+      <div class="qrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-folder"/></svg></span><div><b>报告归档</b><small>文件夹</small></div><span class="src">E:\docs</span></div>
+      <div class="qgroup">Dock</div>
+      <div class="qrow"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-monitor"/></svg></span><div><b>报表工具</b><small>应用</small></div><span class="src">Dock</span></div>
+    </div>
+    <div class="qhint">
+      <span><span class="kbd">↑</span><span class="kbd">↓</span> 选择</span>
+      <span><span class="kbd">Enter</span> 打开</span>
+      <span><span class="kbd">Tab</span> 切换来源</span>
+    </div>
+  </div>
+</section>
+
+<script>
+  const btns = document.querySelectorAll('.navbtn');
+  const screens = document.querySelectorAll('.screen');
+  function show(id){
+    btns.forEach(b=>b.classList.toggle('active', b.dataset.s===id));
+    screens.forEach(s=>s.classList.toggle('on', s.id===id));
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  btns.forEach(b=>b.addEventListener('click', ()=>show(b.dataset.s)));
+  document.addEventListener('keydown', e=>{
+    const cur = [...screens].findIndex(s=>s.classList.contains('on'));
+    if(e.key==='ArrowRight'){ show(screens[(cur+1)%screens.length].id); }
+    else if(e.key==='ArrowLeft'){ show(screens[(cur-1+screens.length)%screens.length].id); }
+  });
+  // 滑块填充色跟随
+  document.querySelectorAll('input[type=range]').forEach(r=>{
+    const fn=()=>r.style.setProperty('--fill', r.value);
+    r.addEventListener('input', fn);
+  });
+  // 圆点指示器交互：点击切换
+  document.querySelectorAll('.dots .dot').forEach((d,i)=>{
+    d.addEventListener('click', ()=>{
+      d.parentElement.querySelectorAll('.dot').forEach(x=>x.classList.remove('on'));
+      d.classList.add('on');
+      const tip=document.getElementById('dotTip');
+      if(tip) tip.textContent='工作区 '+(i+1);
+    });
+  });
+</script>
+</body>
+</html>

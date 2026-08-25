@@ -165,6 +165,8 @@ public:
     RECT GetFrameRect() const;
     RECT GetBodyRect() const;
     RECT GetMoveHandleRect() const;
+    /** @brief 拖拽移动命中区（比视觉底栏更高，方便拖动）。 */
+    RECT GetDragHandleRect() const;
     RECT GetResizeHandleRect() const;
     RECT GetTitleRect() const;
     virtual RECT GetContentViewportRect() const { return GetBodyRect(); }

@@ -3667,6 +3667,24 @@ void SettingsWindow::DrawWidgetPackagesPage()
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     ImGui::PopStyleVar();
 
+    // ── 全局组件设置 ──
+    {
+        ImGui::Spacing();
+        ImGui::TextUnformatted(_L("app.settings.widget_global_settings"));
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (DrawSettingCheckbox(_L("app.settings.widget_free_position"),
+            "##WidgetFreePosition", &generalSettings_.widgetFreePosition))
+            generalSettingsDirty_ = true;
+        if (DrawSettingCheckbox(_L("app.settings.widget_hide_border"),
+            "##WidgetHideBorder", &generalSettings_.widgetHideBorder))
+            generalSettingsDirty_ = true;
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+    }
+
     const auto packages = WidgetEngine::ListWidgetPackages();
     const bool steamBridgeAvailable =
         WidgetEngine::IsSteamWorkshopBridgeAvailable();

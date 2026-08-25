@@ -342,6 +342,16 @@ bool DecodeWidgets(const JsonValue& root, Document& document,
                 error) ||
             !ReadBoolean(object, "privacyMode", path + ".privacyMode",
                 record.privacyMode, error) ||
+            !ReadBoolean(object, "locked", path + ".locked",
+                record.locked, error) ||
+            !ReadBoolean(object, "hideBorder", path + ".hideBorder",
+                record.hideBorder, error) ||
+            !ReadBoolean(object, "freePosition", path + ".freePosition",
+                record.freePosition, error) ||
+            !ReadInteger(object, "freeOffsetX", path + ".freeOffsetX",
+                record.freeOffsetX, error) ||
+            !ReadInteger(object, "freeOffsetY", path + ".freeOffsetY",
+                record.freeOffsetY, error) ||
             !ReadBoolean(object, "scrollContainerMode",
                 path + ".scrollContainerMode", record.scrollContainerMode,
                 error) ||

@@ -291,6 +291,11 @@ void DesktopApp::LoadLayoutSlots()
         }
         widget.showOnHoverOnly = saved.showOnHoverOnly;
         widget.privacyMode = saved.privacyMode;
+        widget.locked = saved.locked;
+        widget.hideBorder = saved.hideBorder;
+        widget.freePosition = saved.freePosition;
+        widget.freeOffsetX = saved.freeOffsetX;
+        widget.freeOffsetY = saved.freeOffsetY;
         widget.scrollContainerMode = saved.scrollContainerMode;
         widget.keepWhenDesktopHidden = saved.keepWhenDesktopHidden;
         widget.showTitle = saved.showTitle.value_or(
@@ -767,6 +772,11 @@ void DesktopApp::SaveLayoutSlots()
              << ", \"showSearchBox\": " << (w.showSearchBox ? "true" : "false")
              << ", \"showOnHoverOnly\": " << (w.showOnHoverOnly ? "true" : "false")
              << ", \"privacyMode\": " << (w.privacyMode ? "true" : "false")
+             << ", \"locked\": " << (w.locked ? "true" : "false")
+             << ", \"hideBorder\": " << (w.hideBorder ? "true" : "false")
+             << ", \"freePosition\": " << (w.freePosition ? "true" : "false")
+             << ", \"freeOffsetX\": " << w.freeOffsetX
+             << ", \"freeOffsetY\": " << w.freeOffsetY
              << ", \"scrollContainerMode\": " << (w.scrollContainerMode ? "true" : "false")
              << ", \"keepWhenDesktopHidden\": "
              << (w.keepWhenDesktopHidden ? "true" : "false")

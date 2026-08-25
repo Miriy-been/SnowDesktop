@@ -243,8 +243,11 @@ void LuaScript::DrawInternal(ID2D1DeviceContext* context, RECT rect,
         }
     }
 
+    const bool effectiveSelected = selected && !data_->hideBorder && !app_->generalSettings_.widgetHideBorder;
+    const D2D1_COLOR_F effectiveBorder = (data_->hideBorder || app_->generalSettings_.widgetHideBorder)
+        ? D2D1::ColorF(0, 0, 0, 0) : borderColor;
     app_->DrawWidgetPanelBackground(context, frame, static_cast<float>(Cu(cornerRadiusCu)),
-        fillColor, borderColor, selected, selected ? 1.6f : 1.0f,
+        fillColor, effectiveBorder, effectiveSelected, effectiveSelected ? 1.6f : 1.0f,
         customStyle ? &effectSettings : nullptr, !preview);
 
     context->PushAxisAlignedClip(app_->ToD2DRect(frame), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);

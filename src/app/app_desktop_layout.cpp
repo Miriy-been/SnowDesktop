@@ -56,6 +56,14 @@ void DesktopApp::LayoutItems()
         else
             widget.cellScale = 1.0f;
         widget.bounds = GetGridRect(gridPages_, widget.gridCell, widget.gridSpan);
+        // 自由摆放模式：在网格单元位置上叠加像素偏移
+        if (widget.freePosition || generalSettings_.widgetFreePosition)
+        {
+            widget.bounds.left   += widget.freeOffsetX;
+            widget.bounds.right  += widget.freeOffsetX;
+            widget.bounds.top    += widget.freeOffsetY;
+            widget.bounds.bottom += widget.freeOffsetY;
+        }
     }
 
     RebuildContainersAndItems();

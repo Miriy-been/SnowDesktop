@@ -435,6 +435,15 @@ void DesktopApp::ShowWidgetContextMenu(
     const UINT privacyToggleCommand = widget.privacyMode
         ? kContextWidgetPrivacyModeOff
         : kContextWidgetPrivacyModeOn;
+    const UINT lockToggleCommand = widget.locked
+        ? kContextWidgetLockOff
+        : kContextWidgetLockOn;
+    const UINT hideBorderToggleCommand = widget.hideBorder
+        ? kContextWidgetHideBorderOff
+        : kContextWidgetHideBorderOn;
+    const UINT freePositionToggleCommand = widget.freePosition
+        ? kContextWidgetFreePositionOff
+        : kContextWidgetFreePositionOn;
     const std::wstring hoverLabel = toggleLabel(
         _LW("app.interact.hover_only"), widget.showOnHoverOnly);
     const std::wstring keepLabel = toggleLabel(
@@ -442,6 +451,15 @@ void DesktopApp::ShowWidgetContextMenu(
         widget.keepWhenDesktopHidden);
     AppendMenuW(menu, MF_STRING, hoverToggleCommand, hoverLabel.c_str());
     AppendMenuW(menu, MF_STRING, keepToggleCommand, keepLabel.c_str());
+    const std::wstring lockLabel = toggleLabel(
+        _LW("app.interact.lock_widget"), widget.locked);
+    AppendMenuW(menu, MF_STRING, lockToggleCommand, lockLabel.c_str());
+    const std::wstring hideBorderLabel = toggleLabel(
+        _LW("app.interact.hide_border"), widget.hideBorder);
+    AppendMenuW(menu, MF_STRING, hideBorderToggleCommand, hideBorderLabel.c_str());
+    const std::wstring freePositionLabel = toggleLabel(
+        _LW("app.interact.free_position"), widget.freePosition);
+    AppendMenuW(menu, MF_STRING, freePositionToggleCommand, freePositionLabel.c_str());
     if (widget.type == DesktopWidgetType::Collection ||
         widget.type == DesktopWidgetType::FileCategories ||
         widget.type == DesktopWidgetType::FolderMapping ||
@@ -483,6 +501,9 @@ void DesktopApp::ShowWidgetContextMenu(
     SetMenuItemQuickAction(menu, kContextWidgetDelete);
     setFluentIcon(menu, hoverToggleCommand, L"\uE5F2");
     setFluentIcon(menu, keepToggleCommand, L"\uF359");
+    setFluentIcon(menu, lockToggleCommand, L"\uE72E");
+    setFluentIcon(menu, hideBorderToggleCommand, L"\uE2B3");
+    setFluentIcon(menu, freePositionToggleCommand, L"\uE72B");
     if (widget.type == DesktopWidgetType::Collection ||
         widget.type == DesktopWidgetType::FileCategories ||
         widget.type == DesktopWidgetType::FolderMapping ||
@@ -911,6 +932,40 @@ void DesktopApp::ShowWidgetContextMenu(
         break;
     case kContextWidgetPrivacyModeOff:
         widgets_[widgetIndex].privacyMode = false;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetLockOn:
+        widgets_[widgetIndex].locked = true;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetLockOff:
+        widgets_[widgetIndex].locked = false;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetHideBorderOn:
+        widgets_[widgetIndex].hideBorder = true;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetHideBorderOff:
+        widgets_[widgetIndex].hideBorder = false;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetFreePositionOn:
+        widgets_[widgetIndex].freePosition = true;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetFreePositionOff:
+        widgets_[widgetIndex].freePosition = false;
+        widgets_[widgetIndex].freeOffsetX = 0;
+        widgets_[widgetIndex].freeOffsetY = 0;
+        LayoutItems();
+        RebuildContainersAndItems();
         SaveLayoutSlots();
         InvalidateRect(hwnd_, nullptr, TRUE);
         break;

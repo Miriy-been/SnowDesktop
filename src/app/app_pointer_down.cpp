@@ -548,6 +548,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
     // ── Widget hit-test ─────────────────────────────────────
     mouseDownWidgetIndex_ = static_cast<size_t>(-1);
     widgetAction_ = WidgetAction::None;
+    widgetContentDragArm_ = false;
     widgetCollectionGroupTargetIndex_ = static_cast<size_t>(-1);
     widgetCollectionGroupInsertIndex_ = static_cast<size_t>(-1);
 
@@ -587,6 +588,10 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
         size_t wi = n - 1;
         WidgetHit wh = HitTestStandaloneWidget(wi, pt);
         if (wh == WidgetHit::None) continue;
+        // 锁定的组件不再触发拖拽/缩放，底栏点击按内容区处理
+        if (widgets_[wi].locked &&
+            (wh == WidgetHit::MoveHandle || wh == WidgetHit::ResizeHandle))
+            wh = WidgetHit::Content;
 
         if (wh == WidgetHit::ResizeHandle)
         {
@@ -646,6 +651,21 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
         mouseDownWidgetIndex_ = wi;
         mouseDownHit_ = nullptr;
         SetCapture(hwnd_);
+        // 内容区按住即可拖动整个组件（输入框与锁定组件除外）。
+        // 松开前若未超过拖拽阈值，仍按普通点击转发给 Lua。
+        if (!hostInputArea && !widgets_[wi].locked)
+        {
+            widgetAction_ = WidgetAction::PendingMove;
+            widgetContentDragArm_ = true;
+            InvalidateDragStaticScene();
+            widgetDragOriginalCell_ = widgets_[wi].gridCell;
+            widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetPreviewCell_ = widgetDragOriginalCell_;
+            widgetPreviewSpan_ = widgetDragOriginalSpan_;
+            RECT bounds = widgets_[wi].bounds;
+            dragGroupOriginX_ = bounds.left;
+            dragGroupOriginY_ = bounds.top;
+        }
         if (widgetEngine_ && widgets_[wi].type == DesktopWidgetType::LuaScript)
         {
             if (IsRectEmptyRect(luaFrame))
@@ -679,6 +699,18 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
 
         WidgetHit wh = wc->HitTestWidget(pt);
         if (wh == WidgetHit::None) continue;
+
+        // 锁定的组件：底栏/缩放角点击只选中，不进入拖拽或缩放
+        if (widgets_[wi].locked &&
+            (wh == WidgetHit::MoveHandle || wh == WidgetHit::ResizeHandle))
+        {
+            SelectWidgetOnly(wi);
+            mouseDownWidgetIndex_ = wi;
+            mouseDownHit_ = nullptr;
+            SetCapture(hwnd_);
+            InvalidateRect(hwnd_, nullptr, FALSE);
+            return;
+        }
 
         if (wh == WidgetHit::ResizeHandle)
         {
@@ -773,14 +805,26 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
                 return;
             }
 
-            // Empty content selects the widget itself.
+            // Empty content selects the widget itself, and arms a drag so the
+            // whole widget can be moved from anywhere (matching Lua widgets).
             ClearSelection();
             widgets_[wi].selected = true;
             mouseDownWidgetIndex_ = wi;
-            marqueeWidgetIndex_ = wi;
-            marqueeInitialScrollOffset_ = wc->GetScrollOffset();
             mouseDownHit_ = nullptr;
             SetCapture(hwnd_);
+            if (!widgets_[wi].locked)
+            {
+                widgetAction_ = WidgetAction::PendingMove;
+                widgetContentDragArm_ = true;
+                InvalidateDragStaticScene();
+                widgetDragOriginalCell_ = widgets_[wi].gridCell;
+                widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+                widgetPreviewCell_ = widgetDragOriginalCell_;
+                widgetPreviewSpan_ = widgetDragOriginalSpan_;
+                RECT bounds = widgets_[wi].bounds;
+                dragGroupOriginX_ = bounds.left;
+                dragGroupOriginY_ = bounds.top;
+            }
             InvalidateRect(hwnd_, nullptr, FALSE);
             return;
         }

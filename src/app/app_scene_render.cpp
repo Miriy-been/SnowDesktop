@@ -212,6 +212,44 @@ void DesktopApp::DrawDynamicOverlays(
     // Widget drag/resize preview
     if ((widgetAction_ == WidgetAction::Move || widgetAction_ == WidgetAction::Resize) && mouseDownWidgetIndex_ < widgets_.size())
     {
+        // 拖拽/缩放期间渲染 Lua 组件的真实内容：临时把组件几何移动到
+        // 预览位置后按常规路径绘制（容器类组件内容缓存了绝对坐标，
+        // 无法在预览位置重绘，仍走下方占位框）。
+        if (widgets_[mouseDownWidgetIndex_].type == DesktopWidgetType::LuaScript)
+        {
+            RECT imageBounds = GetGridRect(
+                gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
+            if (widgets_[mouseDownWidgetIndex_].freePosition ||
+                generalSettings_.widgetFreePosition)
+            {
+                imageBounds.left   += widgetPreviewOffset_.x;
+                imageBounds.right  += widgetPreviewOffset_.x;
+                imageBounds.top    += widgetPreviewOffset_.y;
+                imageBounds.bottom += widgetPreviewOffset_.y;
+            }
+            if (!IsRectEmptyRect(imageBounds))
+            {
+                DesktopWidget& dragged =
+                    widgets_[mouseDownWidgetIndex_];
+                const GridCell savedCell = dragged.gridCell;
+                const GridSpan savedSpan = dragged.gridSpan;
+                const RECT savedBounds = dragged.bounds;
+                dragged.gridCell = widgetPreviewCell_;
+                dragged.gridSpan = widgetPreviewSpan_;
+                dragged.bounds = imageBounds;
+                for (auto& ooItem : items_oo_)
+                {
+                    auto* widget = dynamic_cast<Widget*>(ooItem.get());
+                    if (!widget || widget->GetWidgetData() != &dragged)
+                        continue;
+                    widget->Draw(ctx, imageBounds, 0);
+                    break;
+                }
+                dragged.gridCell = savedCell;
+                dragged.gridSpan = savedSpan;
+                dragged.bounds = savedBounds;
+            }
+        }
         if (widgetAction_ == WidgetAction::Move &&
             widgetCollectionGroupTargetIndex_ <
                 widgets_.size() &&
@@ -257,37 +295,54 @@ void DesktopApp::DrawDynamicOverlays(
                 widgetDockTargetContainer_->DrawInsertionPreview(
                     ctx, widgetDockInsertIndex_);
         }
-        else
+        else if (widgets_[mouseDownWidgetIndex_].type != DesktopWidgetType::LuaScript)
         {
         GridCell cell = widgetPreviewCell_;
         GridSpan span = widgetPreviewSpan_;
         RECT previewBounds = GetGridRect(gridPages_, cell, span);
-
-        bool widgetConflict = false;
-        for (size_t i = 0; i < widgets_.size(); ++i)
+        if (widgets_[mouseDownWidgetIndex_].freePosition ||
+                generalSettings_.widgetFreePosition)
         {
-            if (i == mouseDownWidgetIndex_) continue;
-            const auto& ow = widgets_[i];
-            if (!snowdesktop::collection_group_rules::
-                    ShouldOccupyDesktopGrid(
-                        IsGroupedWidget(ow)))
-                continue;
-            if (ow.gridCell.pageId != cell.pageId) continue;
-            if (cell.column + span.columns <= ow.gridCell.column) continue;
-            if (ow.gridCell.column + ow.gridSpan.columns <= cell.column) continue;
-            if (cell.row + span.rows <= ow.gridCell.row) continue;
-            if (ow.gridCell.row + ow.gridSpan.rows <= cell.row) continue;
-            widgetConflict = true; break;
+            previewBounds.left   += widgetPreviewOffset_.x;
+            previewBounds.right  += widgetPreviewOffset_.x;
+            previewBounds.top    += widgetPreviewOffset_.y;
+            previewBounds.bottom += widgetPreviewOffset_.y;
         }
 
-        bool ok = !widgetConflict && !cell.pageId.empty();
-        float radius = 8.0f;
-        D2D1::ColorF fill = ok ? D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.15f)
-                              : D2D1::ColorF(1.0f, 0.30f, 0.30f, 0.18f);
-        D2D1::ColorF border = ok ? D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.75f)
-                                 : D2D1::ColorF(1.0f, 0.25f, 0.25f, 0.85f);
-
-        DrawD2DRoundedRectangle(ctx, previewBounds, radius, fill, border, 2.0f);
+        // 容器类组件拖拽预览：整个组件（含内部子图标）随拖拽平移。
+        // 不修改 bounds，改用 D2D 平移变换把 chrome+子项整体移到预览
+        // 位置；关闭毛玻璃面板注册，避免拖拽时在旧位置残留面板。
+        if (widgets_[mouseDownWidgetIndex_].type != DesktopWidgetType::LuaScript)
+        {
+            DesktopWidget& dragged = widgets_[mouseDownWidgetIndex_];
+            const RECT original = dragged.bounds;
+            const int deltaX = previewBounds.left - original.left;
+            const int deltaY = previewBounds.top  - original.top;
+            for (auto& container : containers_)
+            {
+                auto* wc = dynamic_cast<WidgetContainer*>(container.get());
+                if (!wc || wc->GetWidgetData() != &dragged) continue;
+                // 投射到预览选项：预览绘制、关闭毛玻璃面板注册
+                snowdesktop::WidgetRenderOptions preOpts;
+                preOpts.interactive = false;
+                preOpts.registerBackdrop = false;
+                auto* savedOpts = wc->GetRenderOptions();
+                const bool savedSelected = dragged.selected;
+                dragged.selected = false;   // 拖拽预览不显示选中态边框
+                wc->SetRenderOptions(&preOpts);
+                D2D1_MATRIX_3X2_F prevTx;
+                ctx->GetTransform(&prevTx);
+                ctx->SetTransform(prevTx *
+                    D2D1::Matrix3x2F::Translation(
+                        static_cast<float>(deltaX),
+                        static_cast<float>(deltaY)));
+                wc->DrawChrome(ctx, POINT{});
+                ctx->SetTransform(prevTx);
+                wc->SetRenderOptions(savedOpts);
+                dragged.selected = savedSelected;
+                break;
+            }
+        }
         }
     }
 

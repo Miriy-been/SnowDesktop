@@ -56,6 +56,11 @@ struct WidgetRecord
     bool showSearchBox = false;
     bool showOnHoverOnly = false;
     bool privacyMode = false;
+    bool locked = false;
+    bool hideBorder = false;
+    bool freePosition = false;
+    int freeOffsetX = 0;
+    int freeOffsetY = 0;
     bool scrollContainerMode = false;
     bool keepWhenDesktopHidden = false;
     std::optional<bool> showTitle;

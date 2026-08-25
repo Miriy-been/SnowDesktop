@@ -32,6 +32,8 @@ struct GeneralSettings
     int pageDotsVertical = 0;          ///< 垂直位置：0=底部 1=顶部
     int pageDotsHorizontal = 0;        ///< 水平位置：0=居中 1=左侧 2=右侧
     float pageDotsMargin = 32.0f;      ///< 距边距离（像素）
+    bool widgetFreePosition = false;   ///< 全局自由摆放（不吸附网格）
+    bool widgetHideBorder = false;     ///< 全局隐藏组件边框
 };
 
 std::wstring GetGeneralSettingsPath();

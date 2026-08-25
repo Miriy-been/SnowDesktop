@@ -2219,6 +2219,8 @@ private:
      * @return 移动手柄矩形
      */
     RECT GetStandaloneWidgetMoveHandleRect(const DesktopWidget& widget) const;
+    /** @brief 独立组件拖拽移动命中区（比视觉底栏更高，方便拖动）。 */
+    RECT GetStandaloneWidgetDragHandleRect(const DesktopWidget& widget) const;
     /**
      * @brief 获取独立模式部件的缩放手柄矩形。
      * @param widget 部件引用
@@ -2751,10 +2753,13 @@ private:
     enum class WidgetAction { None, PendingMove, PendingResize, Move, Resize };
     WidgetAction widgetAction_ = WidgetAction::None;
     bool middleButtonWidgetMove_ = false;
+    /// Lua 组件内容区按下进入 PendingMove：松开未拖动时需把点击转发给 Lua
+    bool widgetContentDragArm_ = false;
     GridCell widgetDragOriginalCell_{};
     GridSpan widgetDragOriginalSpan_{};
     GridCell widgetPreviewCell_{};
     GridSpan widgetPreviewSpan_{};
+    POINT widgetPreviewOffset_{}; ///< 自由摆放拖拽时的像素偏移预览
     bool widgetPreviewOccupied_ = false;
     bool widgetDockTarget_ = false;
     DockContainer* widgetDockTargetContainer_ = nullptr;

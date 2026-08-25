@@ -52,6 +52,9 @@ void DesktopApp::OnMiddleButtonDown(WPARAM wp, LPARAM lp)
         }
     }
     if (widgetIndex >= widgets_.size()) return;
+    // 锁定的组件不允许中键拖动
+    if (widgets_[widgetIndex].locked) return;
+    widgetContentDragArm_ = false;
 
     RestoreInteractionInputFocus();
     SelectWidgetOnly(widgetIndex);
@@ -154,11 +157,35 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
         return;
     }
 
-    if (!dragSession_.IsActive() && widgetAction_ == WidgetAction::None &&
+    const bool luaContentPress =
+        widgetAction_ == WidgetAction::PendingMove &&
+        !middleButtonWidgetMove_ && widgetContentDragArm_;
+    if (!dragSession_.IsActive() &&
+        (widgetAction_ == WidgetAction::None || luaContentPress) &&
         mouseDownWidgetIndex_ < widgets_.size() &&
         widgets_[mouseDownWidgetIndex_].type == DesktopWidgetType::LuaScript &&
         widgetEngine_)
     {
+        if (luaContentPress &&
+            (std::abs(current.x - mouseDownPoint_.x) > 3 ||
+                std::abs(current.y - mouseDownPoint_.y) > 3))
+        {
+            // 内容区按住并移动超过阈值：转入组件拖拽。
+            // 先补发 onMouseUp 释放 Lua 侧按压状态，避免按钮停留在按下态。
+            RECT convFrame =
+                GetStandaloneWidgetFrameRect(
+                    widgets_[mouseDownWidgetIndex_]);
+            widgetEngine_->InvokeMouseEvent(
+                widgets_[mouseDownWidgetIndex_].id, "onMouseUp",
+                current.x - convFrame.left,
+                current.y - convFrame.top, 1, 0);
+            widgetAction_ = WidgetAction::Move;
+            widgetContentDragArm_ = false;
+            InvalidateRect(hwnd_, nullptr, FALSE);
+            // 落入下方的组件拖拽预览处理
+        }
+        else
+        {
         WidgetHit hit = HitTestStandaloneWidget(mouseDownWidgetIndex_, current);
         RECT frame =
             GetStandaloneWidgetFrameRect(
@@ -186,6 +213,7 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
         InvalidateRect(hwnd_, nullptr, FALSE);
         PresentDesktopPointerUpdate();
         return;
+        }
     }
 
     const bool pressedDockEntryWithoutSelection =
@@ -454,6 +482,11 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
                         dragGroupOriginY_ += dy;
                         mouseDownPoint_.x += dx;
                         mouseDownPoint_.y += dy;
+                        // 翻页后末屏 pageId 已变，更新组件 gridCell.pageId 保持一致
+                        if (!lastMonitorPageId_.empty())
+                            widgets_[mouseDownWidgetIndex_].gridCell.pageId = lastMonitorPageId_;
+                        widgetDragOriginalCell_ = widgets_[mouseDownWidgetIndex_].gridCell;
+                        widgetDragOriginalSpan_ = widgets_[mouseDownWidgetIndex_].gridSpan;
                         InvalidateDragStaticScene();
                         InvalidateRect(hwnd_, nullptr, TRUE);
                     }
@@ -473,10 +506,52 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
             navAutoFlipTick_ = 0;
         }
 
+        // ── 拖拽悬浮到分页圆点：直接跳转到对应页面 ──
+        // 仅在组件移动拖拽中生效（普通悬浮圆点不触发翻页）。
+        const int dotIndex = HitTestPageDotsIndicator(current);
+        if (dotIndex >= 0 && dotIndex <= MaxPageOffset() &&
+            dotIndex != pageOffset_)
+        {
+            RECT oldWidgetBounds =
+                widgets_[mouseDownWidgetIndex_].bounds;
+            pageOffset_ = dotIndex;
+            ApplyPageMapping();
+            LayoutItems();
+            RECT newWidgetBounds =
+                widgets_[mouseDownWidgetIndex_].bounds;
+            const int dx = newWidgetBounds.left - oldWidgetBounds.left;
+            const int dy = newWidgetBounds.top  - oldWidgetBounds.top;
+            dragGroupOriginX_ += dx;
+            dragGroupOriginY_ += dy;
+            mouseDownPoint_.x += dx;
+            mouseDownPoint_.y += dy;
+            if (!lastMonitorPageId_.empty())
+                widgets_[mouseDownWidgetIndex_].gridCell.pageId = lastMonitorPageId_;
+            widgetDragOriginalCell_ =
+                widgets_[mouseDownWidgetIndex_].gridCell;
+            widgetDragOriginalSpan_ =
+                widgets_[mouseDownWidgetIndex_].gridSpan;
+            InvalidateDragStaticScene();
+            InvalidateRect(hwnd_, nullptr, TRUE);
+        }
+
         POINT adjusted = {
             dragGroupOriginX_ + (current.x - mouseDownPoint_.x),
             dragGroupOriginY_ + (current.y - mouseDownPoint_.y)
         };
+        if (widgets_[mouseDownWidgetIndex_].freePosition ||
+            generalSettings_.widgetFreePosition)
+        {
+            // 自由摆放：计算相对于原始网格单元左上角的像素偏移
+            RECT cellRect = GetGridRect(gridPages_,
+                widgetDragOriginalCell_, widgetDragOriginalSpan_);
+            widgetPreviewOffset_.x = adjusted.x - cellRect.left;
+            widgetPreviewOffset_.y = adjusted.y - cellRect.top;
+            widgetPreviewCell_ = widgetDragOriginalCell_;
+            widgetPreviewSpan_ = widgetDragOriginalSpan_;
+        }
+        else
+        {
         GridCell cell = CellFromPointForDrag(adjusted);
         if (!cell.pageId.empty())
         {
@@ -487,6 +562,7 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
                 cell.row    = std::clamp(cell.row,    0, page->rows    - widgetDragOriginalSpan_.rows);
             }
             widgetPreviewCell_ = cell;
+        }
         }
         ShowDragHintWindow(current, _LW("core.drag.move_widget"));
         InvalidateRect(hwnd_, nullptr, TRUE);

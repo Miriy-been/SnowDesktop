@@ -122,6 +122,26 @@ RECT DesktopApp::GetStandaloneWidgetMoveHandleRect(const DesktopWidget& widget) 
 }
 
 /**
+ * @brief 获取独立窗口小部件的拖拽移动命中区（比视觉底栏更高）。
+ * @param widget 桌面小部件引用
+ * @return 拖拽命中区边界矩形
+ */
+RECT DesktopApp::GetStandaloneWidgetDragHandleRect(const DesktopWidget& widget) const
+{
+    RECT move = GetStandaloneWidgetMoveHandleRect(widget);
+    const float cellScale = GetWidgetCellScale(widget);
+    const auto personalization = settingsWindow_
+        ? settingsWindow_->GetPersonalization()
+        : PersonalizationSettings{};
+    const int barHeight = ScaleWidgetCu(
+        personalization.barHeight, cellScale);
+    RECT expanded = move;
+    expanded.top = std::max<LONG>(
+        move.top - barHeight, move.bottom - barHeight * 2);
+    return expanded;
+}
+
+/**
  * @brief 获取独立窗口小部件的调整大小手柄矩形
  * @param widget 桌面小部件引用
  * @return 调整大小手柄矩形
@@ -157,7 +177,7 @@ WidgetHit DesktopApp::HitTestStandaloneWidget(size_t widgetIndex, POINT pt) cons
     if (!PtInRect(&frame, pt)) return WidgetHit::None;
     RECT resize = GetStandaloneWidgetResizeHandleRect(widget);
     if (PtInRect(&resize, pt)) return WidgetHit::ResizeHandle;
-    RECT move = GetStandaloneWidgetMoveHandleRect(widget);
+    RECT move = GetStandaloneWidgetDragHandleRect(widget);
     if (PtInRect(&move, pt)) return WidgetHit::MoveHandle;
     return WidgetHit::Content;
 }

@@ -139,6 +139,10 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.pageDotsHorizontal = std::clamp(intValue, 0, 2);
     if (ReadFloatField(text, "pageDotsMargin", floatValue))
         settings.pageDotsMargin = std::clamp(floatValue, 8.0f, 100.0f);
+    if (ReadBoolField(text, "widgetFreePosition", val))
+        settings.widgetFreePosition = val;
+    if (ReadBoolField(text, "widgetHideBorder", val))
+        settings.widgetHideBorder = val;
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
     return true;
 }
@@ -170,6 +174,10 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"pageDotsVertical\": " << settings.pageDotsVertical << ",\n";
     file << "  \"pageDotsHorizontal\": " << settings.pageDotsHorizontal << ",\n";
     file << "  \"pageDotsMargin\": " << settings.pageDotsMargin << ",\n";
+    file << "  \"widgetFreePosition\": "
+         << (settings.widgetFreePosition ? "true" : "false") << ",\n";
+    file << "  \"widgetHideBorder\": "
+         << (settings.widgetHideBorder ? "true" : "false") << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;
