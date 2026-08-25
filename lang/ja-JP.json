@@ -529,6 +529,7 @@
   "app.menu.next_page": "次のページ",
   "app.menu.goto_page": "に移動",
   "app.menu.add_page": "新しいページ",
+  "app.menu.rename_page": "ページ名を変更",
   "app.interact.link": "リンク",
   "app.interact.shortcut_suffix": "- ショートカット",
   "app.interact.copy_suffix": "- コピー",

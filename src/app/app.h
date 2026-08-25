@@ -307,6 +307,25 @@ struct UiCompositionAnimationOverlay
  * DesktopApp 是应用组合根；槽位规则、拖放目标解析、选择、重命名、
  * 弹窗驻留和托盘生命周期由独立核心/控制器对象承接。
  */
+
+/**
+ * @brief 常驻圆点分页指示器的布局信息（末屏定位 + 几何，绘制/命中测试共用）。
+ */
+struct PageDotsLayoutInfo
+{
+    bool valid = false;
+    int totalPages = 0;
+    RECT capsule{};             ///< 胶囊背景矩形（client 坐标）
+    float capsuleLeft = 0.0f;
+    float capsuleTop = 0.0f;
+    float capsuleHeight = 0.0f;
+    float firstDotCenterX = 0.0f; ///< 第 0 个圆点圆心 X（client 坐标）
+    float dotsCenterY = 0.0f;
+    float uniformSpacing = 0.0f;  ///< 圆点中心间距
+    float activeRadius = 0.0f;
+    float inactiveRadius = 0.0f;
+};
+
 class DesktopApp : private OleDragDropHandler
 {
 public:
@@ -611,6 +630,10 @@ private:
     void DrawPageNavButtons(ID2D1DeviceContext* ctx);
     /** @brief 绘制常驻圆点分页指示器（移动端风格，末屏底部居中）。 @param ctx D2D 设备上下文 */
     void DrawPageDotsIndicator(ID2D1DeviceContext* ctx);
+    /** @brief 计算常驻圆点分页指示器的布局信息（末屏定位 + 几何）。 @return 布局信息 */
+    PageDotsLayoutInfo ComputePageDotsLayout() const;
+    /** @brief 命中测试常驻圆点分页指示器。 @param clientPt client 坐标 @return 命中页索引（0-based），未命中返回 -1 */
+    int HitTestPageDotsIndicator(POINT clientPt) const;
     /** @brief 绘制换页通知覆盖层（左上角角标，类似电视台换台）。 @param ctx D2D 设备上下文 */
     void DrawPageNotify(
         ID2D1DeviceContext* ctx,
@@ -2264,8 +2287,12 @@ private:
     /** @brief 开始重命名文件夹条目。 @param widgetIndex 部件索引 @param memberIndex 成员索引 */
     void BeginRenameFolderEntry(size_t widgetIndex, size_t memberIndex);
     void BeginRenameDockFolderPopupEntry(size_t memberIndex);
+    /** @brief 开始重命名页面。 @param pageIndex 在 savedPageIds_ 中的索引 */
+    void BeginPageRename(size_t pageIndex);
     /** @brief 提交或取消文件夹条目重命名。 @param newName 新名称 @param cancel true 取消 */
     void CommitFolderEntryRename(const std::wstring& newName, bool cancel);
+    /** @brief 提交或取消页面重命名。 @param newName 新名称 @param cancel true 取消 */
+    void CommitPageRename(const std::wstring& newName, bool cancel);
 
     // ── Member variables ────────────────────────────────────
     /** @brief 应用程序实例句柄 */
@@ -2501,6 +2528,7 @@ private:
     std::unordered_map<std::wstring, bool> settingsIconVisibility_;
     std::unordered_map<std::wstring, int> savedPageColumns_;
     std::unordered_map<std::wstring, int> savedPageRows_;
+    std::unordered_map<std::wstring, std::wstring> savedPageNames_;
     std::vector<std::wstring> savedPageIds_;
     RECT layoutWorkArea_{};
     float iconSpacingScale_ = 1.0f;

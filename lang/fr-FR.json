@@ -529,6 +529,7 @@
   "app.menu.next_page": "Page suivante",
   "app.menu.goto_page": "Aller à",
   "app.menu.add_page": "Nouvelle page",
+  "app.menu.rename_page": "Renommer la page",
   "app.interact.link": "Lien",
   "app.interact.shortcut_suffix": "- Raccourci",
   "app.interact.copy_suffix": "- Copier",

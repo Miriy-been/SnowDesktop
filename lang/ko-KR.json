@@ -529,6 +529,7 @@
   "app.menu.next_page": "다음 페이지",
   "app.menu.goto_page": "바로가기",
   "app.menu.add_page": "새 페이지",
+  "app.menu.rename_page": "페이지 이름 바꾸기",
   "app.interact.link": "링크",
   "app.interact.shortcut_suffix": "- 바로가기",
   "app.interact.copy_suffix": "- 복사",

@@ -529,6 +529,7 @@
     "app.menu.next_page": "Next Page",
     "app.menu.goto_page": "Go To",
     "app.menu.add_page": "New Page",
+    "app.menu.rename_page": "Rename Page",
     "app.interact.link": "Link",
     "app.interact.shortcut_suffix": " - Shortcut",
     "app.interact.copy_suffix": " - Copy",

@@ -11,6 +11,18 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
     popupDragTargetSlot_.reset();
     pendingGuideAction_ = WidgetHit::None;
     POINT pt{ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+
+    // 圆点分页指示器点击 → 跳转到对应页面
+    if (!desktopIconsHidden_)
+    {
+        const int dotPage = HitTestPageDotsIndicator(pt);
+        if (dotPage >= 0)
+        {
+            JumpToPageOffset(dotPage);
+            return;
+        }
+    }
+
     if (!luaWidgetPanelRequest_.widgetId.empty() &&
         luaWidgetPanelAnimation_.IsInteractive())
     {

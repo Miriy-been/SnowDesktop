@@ -715,6 +715,12 @@ int DesktopApp::MaxPageOffset() const
 
 std::wstring DesktopApp::GetPageDisplayName(int index) const
 {
+    if (index >= 0 && static_cast<size_t>(index) < savedPageIds_.size())
+    {
+        const auto it = savedPageNames_.find(savedPageIds_[index]);
+        if (it != savedPageNames_.end() && !it->second.empty())
+            return it->second;
+    }
     return _LFW("app.grid.page_label", std::to_wstring(index + 1));
 }
 
@@ -756,7 +762,6 @@ void DesktopApp::AddNewPage()
             PlaceGuideWidgetOnPage(savedPageIds_[i]);   // PlaceGuideWidgetOnPage 内部已 SaveLayoutSlots
             ApplyPageMapping();
             LayoutItems();
-            ShowPageNotify(GetPageDisplayName(static_cast<int>(i)));
             if (hwnd_) InvalidateRect(hwnd_, nullptr, TRUE);
             return;
         }
@@ -777,11 +782,6 @@ void DesktopApp::AddNewPage()
     pageOffset_ = MaxPageOffset();       // 跳到新页
     ApplyPageMapping();
     LayoutItems();
-
-    // 显式触发换页通知（ApplyPageMapping 内的变化检测可能因 lastMonitorPageId_ 被清空而失效）
-    auto it = std::ranges::find(savedPageIds_, newPageId);
-    if (it != savedPageIds_.end())
-        ShowPageNotify(GetPageDisplayName(static_cast<int>(it - savedPageIds_.begin())));
 
     if (hwnd_) InvalidateRect(hwnd_, nullptr, TRUE);
 }
@@ -1009,7 +1009,6 @@ void DesktopApp::CompactPageIds()
  */
 void DesktopApp::MapPagesToMonitors()
 {
-    const std::wstring oldLastPageId = lastMonitorPageId_;
     lastMonitorPageId_.clear();
     if (gridPages_.empty()) return;
 
@@ -1031,18 +1030,6 @@ void DesktopApp::MapPagesToMonitors()
     // 仅当存在溢出页时保留 lastMonitorPageId_，否则清空（gfx 据此决定末屏箭头）
     if (!lastMonitorPageId_.empty() && savedPageIds_.size() <= gridPages_.size())
         lastMonitorPageId_.clear();
-
-    // 末屏显示页变化时触发换页通知（类似电视台换台角标）
-    // 仅当 oldLastPageId 非空时才触发——避免启动/初始化时误弹通知
-    if (!oldLastPageId.empty() && !lastMonitorPageId_.empty() && lastMonitorPageId_ != oldLastPageId)
-    {
-        auto it = std::ranges::find(savedPageIds_, lastMonitorPageId_);
-        if (it != savedPageIds_.end())
-        {
-            const int pageIdx = static_cast<int>(it - savedPageIds_.begin());
-            ShowPageNotify(GetPageDisplayName(pageIdx));
-        }
-    }
 }
 
 /**

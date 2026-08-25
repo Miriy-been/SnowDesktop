@@ -15,6 +15,7 @@ struct PageRecord
     std::string id;
     std::optional<int> columns;
     std::optional<int> rows;
+    std::optional<std::string> name; ///< 自定义页面名（可重命名），空表示用默认"第X页"
 };
 
 struct ItemRecord

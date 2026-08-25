@@ -529,6 +529,7 @@
   "app.menu.next_page": "下一頁",
   "app.menu.goto_page": "跳到",
   "app.menu.add_page": "新增頁",
+  "app.menu.rename_page": "重新命名頁",
   "app.interact.link": "連結",
   "app.interact.shortcut_suffix": "- 捷徑",
   "app.interact.copy_suffix": "- 副本",

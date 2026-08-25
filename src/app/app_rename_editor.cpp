@@ -351,3 +351,102 @@ LRESULT CALLBACK DesktopApp::RenameEditSubclassProc(
 }
 
 /** @brief 将 Lua 内联编辑框当前内容实时写回小部件存储。 */
+
+/**
+ * @brief 开始重命名页面。
+ *
+ * 在末屏页面水平居中、垂直约 1/3 处弹出文本编辑框，
+ * 预填当前页面显示名并全选；Enter/焦点丢失提交，Esc 取消。
+ *
+ * @param pageIndex 在 savedPageIds_ 中的索引
+ */
+void DesktopApp::BeginPageRename(size_t pageIndex)
+{
+    if (renameEdit_ != nullptr) return;
+    if (pageIndex >= savedPageIds_.size()) return;
+    if (gridPages_.empty()) return;
+
+    renameCommitPending_ = false;
+    renameController_.BeginPage(pageIndex);
+
+    // 定位末屏（与圆点指示器/翻页按钮一致的解析策略）
+    const GridPage* targetPage = nullptr;
+    if (!lastMonitorPageId_.empty())
+    {
+        for (const auto& page : gridPages_)
+        {
+            if (page.id == lastMonitorPageId_)
+            {
+                targetPage = &page;
+                break;
+            }
+        }
+    }
+    if (!targetPage)
+    {
+        std::vector<size_t> order = BuildMonitorRenderOrder();
+        if (!order.empty()) targetPage = &gridPages_[order.back()];
+    }
+    if (!targetPage) targetPage = &gridPages_.back();
+    const RECT workArea = targetPage->workArea;
+    if (IsRectEmptyRect(workArea))
+    {
+        renameController_.Reset();
+        return;
+    }
+
+    constexpr int kEditWidth = 280;
+    constexpr int kEditHeight = 34;
+    RECT clientRect{};
+    clientRect.left = workArea.left
+        + (workArea.right - workArea.left - kEditWidth) / 2;
+    clientRect.top = workArea.top
+        + (workArea.bottom - workArea.top) / 3;
+    clientRect.right = clientRect.left + kEditWidth;
+    clientRect.bottom = clientRect.top + kEditHeight;
+    RECT screenRect = clientRect;
+    MapWindowPoints(hwnd_, nullptr,
+        reinterpret_cast<POINT*>(&screenRect), 2);
+
+    const std::wstring currentName =
+        GetPageDisplayName(static_cast<int>(pageIndex));
+
+    renameEdit_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+        L"EDIT", currentName.c_str(),
+        WS_POPUP | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
+        screenRect.left, screenRect.top,
+        screenRect.right - screenRect.left,
+        screenRect.bottom - screenRect.top,
+        hwnd_, nullptr, instance_, nullptr);
+    if (!renameEdit_)
+    {
+        renameController_.Reset();
+        return;
+    }
+
+    if (renameFont_) DeleteObject(renameFont_);
+    renameFont_ = CreateFontW(
+        -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    SendMessageW(renameEdit_, WM_SETFONT,
+        reinterpret_cast<WPARAM>(
+            renameFont_ ? renameFont_
+                : GetStockObject(DEFAULT_GUI_FONT)),
+        TRUE);
+    const int editMargin = 6;
+    SendMessageW(renameEdit_, EM_SETMARGINS,
+        EC_LEFTMARGIN | EC_RIGHTMARGIN,
+        MAKELPARAM(editMargin, editMargin));
+    SetWindowSubclass(renameEdit_,
+        &DesktopApp::RenameEditSubclassProc, 1,
+        reinterpret_cast<DWORD_PTR>(this));
+    SetWindowPos(renameEdit_, HWND_TOPMOST,
+        screenRect.left, screenRect.top,
+        screenRect.right - screenRect.left,
+        screenRect.bottom - screenRect.top,
+        SWP_SHOWWINDOW);
+    SendMessageW(renameEdit_, EM_SETSEL, 0, -1);
+    SetFocus(renameEdit_);
+}

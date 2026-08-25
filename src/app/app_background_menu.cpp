@@ -1526,6 +1526,7 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
     }
 
     AppendMenuW(menu, MF_STRING, kContextPageAdd, _LW("app.menu.add_page"));
+    AppendMenuW(menu, MF_STRING, kContextPageRename, _LW("app.menu.rename_page"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, kContextSettingsCommand, _LW("app.menu.settings"));
 
@@ -1838,6 +1839,24 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
         case kContextPagePrev: NavigatePageOffset(-1); break;
         case kContextPageNext: NavigatePageOffset(1); break;
         case kContextPageAdd: AddNewPage(); break;
+        case kContextPageRename:
+        {
+            POINT clientPoint = screenPoint;
+            ScreenToClient(hwnd_, &clientPoint);
+            const GridPage* clickedPage = GridPageFromPoint(clientPoint);
+            const std::wstring clickedPageId =
+                clickedPage ? clickedPage->id : L"";
+            auto it = std::ranges::find(savedPageIds_, clickedPageId);
+            int pageIdx = (it != savedPageIds_.end())
+                ? static_cast<int>(it - savedPageIds_.begin())
+                : pageOffset_ + static_cast<int>(gridPages_.size()) - 1;
+            if (pageIdx >= 0 &&
+                static_cast<size_t>(pageIdx) < savedPageIds_.size())
+            {
+                BeginPageRename(static_cast<size_t>(pageIdx));
+            }
+            break;
+        }
         default: break;
         }
     }

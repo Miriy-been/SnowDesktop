@@ -162,6 +162,7 @@ constexpr UINT kContextPreviewLuaWidgetFirst = 41440;
 constexpr UINT kContextPagePrev = 41407;
 constexpr UINT kContextPageNext = 41408;
 constexpr UINT kContextPageAdd = 41409;
+constexpr UINT kContextPageRename = 41412;
 constexpr UINT kContextPinFirstPage = 41410;
 constexpr UINT kContextPinLastPage = 41411;
 constexpr UINT kContextGridRecommended169First = 41414;

@@ -201,6 +201,14 @@ void DesktopApp::CommitRename(bool cancel)
         return;
     }
 
+    if (renameController_.IsPage())
+    {
+        CommitPageRename(newName, cancel);
+        if (quickNavigationRename)
+            InvalidateQuickNavigationWindow();
+        return;
+    }
+
     if (renameController_.IsWidget())
     {
         if (!cancel && renameIndex < widgets_.size())
@@ -326,6 +334,57 @@ void DesktopApp::CommitRename(bool cancel)
         SaveDockUsageStats();
     if (quickNavigationRename)
         InvalidateQuickNavigationWindow();
+}
+
+/**
+ * @brief 提交或取消页面重命名。
+ * @param newName 新名称
+ * @param cancel  是否取消重命名
+ */
+void DesktopApp::CommitPageRename(const std::wstring& newName, bool cancel)
+{
+    const size_t pageIndex = renameController_.Index();
+    renameController_.Reset();
+
+    if (pageIndex >= savedPageIds_.size())
+        return;
+
+    const std::wstring& pageId = savedPageIds_[pageIndex];
+    if (cancel)
+    {
+        // 取消：仅清除已存在的自定义名（若原本就是默认名则无操作）
+        if (savedPageNames_.find(pageId) != savedPageNames_.end())
+        {
+            savedPageNames_.erase(pageId);
+            SaveLayoutSlots();
+        }
+        if (hwnd_ && IsWindow(hwnd_))
+            InvalidateRect(hwnd_, nullptr, TRUE);
+        return;
+    }
+
+    // 内联修剪首尾空白
+    const auto isSpace = [](wchar_t c) {
+        return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n';
+    };
+    size_t begin = 0;
+    while (begin < newName.size() && isSpace(newName[begin])) ++begin;
+    size_t end = newName.size();
+    while (end > begin && isSpace(newName[end - 1])) --end;
+    const std::wstring trimmed = newName.substr(begin, end - begin);
+
+    if (trimmed.empty())
+    {
+        // 空名：恢复默认"第X页"
+        savedPageNames_.erase(pageId);
+    }
+    else
+    {
+        savedPageNames_[pageId] = trimmed;
+    }
+    SaveLayoutSlots();
+    if (hwnd_ && IsWindow(hwnd_))
+        InvalidateRect(hwnd_, nullptr, TRUE);
 }
 
 /**

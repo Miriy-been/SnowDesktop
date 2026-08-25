@@ -522,7 +522,6 @@ void DesktopApp::DrawDynamicOverlays(
     if (!hiddenMode && !renderingFloatingDock_)
     {
         DrawPageNavButtons(ctx);
-        DrawPageNotify(ctx);
     }
 }
 

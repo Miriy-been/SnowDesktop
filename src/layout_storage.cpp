@@ -221,7 +221,9 @@ bool DecodePages(const JsonValue& root, Document& document,
             !ReadOptionalInteger(object, "columns", path + ".columns",
                 record.columns, error) ||
             !ReadOptionalInteger(object, "rows", path + ".rows",
-                record.rows, error))
+                record.rows, error) ||
+            !ReadOptionalString(object, "name", path + ".name",
+                record.name, error))
         {
             return false;
         }

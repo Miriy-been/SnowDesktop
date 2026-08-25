@@ -23,6 +23,7 @@ enum class RenameTargetKind
     Widget,
     FolderEntry,
     DockFolderEntry,
+    Page,
 };
 
 /** Keeps rename targets mutually exclusive across every application surface. */
@@ -56,6 +57,12 @@ public:
     {
         Begin(RenameTargetKind::DockFolderEntry,
             entryIndex, InvalidIndex);
+    }
+
+    void BeginPage(std::size_t pageIndex)
+    {
+        Begin(RenameTargetKind::Page,
+            pageIndex, InvalidIndex);
     }
 
     void SetQuickNavigationPresentation(bool value)
@@ -95,6 +102,10 @@ public:
     bool IsDockFolderEntry() const
     {
         return kind_ == RenameTargetKind::DockFolderEntry;
+    }
+    bool IsPage() const
+    {
+        return kind_ == RenameTargetKind::Page;
     }
     bool IsQuickNavigationPresentation() const
     {
