@@ -190,8 +190,13 @@ PageDotsLayoutInfo DesktopApp::ComputePageDotsLayout() const
     const RECT workArea = targetPage->workArea;
     if (IsRectEmptyRect(workArea)) return info;
 
+    // 间距/大小可自定义（读取通用设置，未加载时用默认值）
+    const float activeRadius = generalSettings_.pageDotsActiveRadius;
+    const float inactiveRadius = std::max(2.0f, activeRadius * 0.6f);
+    const float dotGap = generalSettings_.pageDotsGap;
     const pageDots::PageDotsGeometry geom =
-        pageDots::ComputePageDotsGeometry(totalPages);
+        pageDots::ComputePageDotsGeometry(
+            totalPages, activeRadius, inactiveRadius, dotGap);
     const float capsuleCenterX = static_cast<float>(workArea.left + workArea.right)
         * 0.5f;
     const float capsuleTop = static_cast<float>(workArea.bottom)
@@ -328,5 +333,65 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
                 D2D1::Point2F(centerX, info.dotsCenterY),
                 radius, radius),
             dotBrush.Get());
+    }
+
+    // hover 提示：显示悬停圆点对应页面的名字
+    if (hoveredDot >= 0 && generalSettings_.pageDotsShowName)
+    {
+        const std::wstring name = GetPageDisplayName(hoveredDot);
+        auto* dwrite = GetDWriteFactory();
+        if (dwrite && !name.empty())
+        {
+            ComPtr<IDWriteTextFormat> fmt;
+            if (SUCCEEDED(dwrite->CreateTextFormat(L"Segoe UI", nullptr,
+                    DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                    DWRITE_FONT_STRETCH_NORMAL, 13.0f, L"", &fmt)) &&
+                fmt)
+            {
+                fmt->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                fmt->SetParagraphAlignment(
+                    DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                fmt->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+
+                float textW = 0.0f;
+                float textH = 0.0f;
+                ComPtr<IDWriteTextLayout> measure;
+                if (SUCCEEDED(dwrite->CreateTextLayout(name.c_str(),
+                        static_cast<UINT32>(name.size()), fmt.Get(),
+                        800.0f, 60.0f, &measure)) &&
+                    measure)
+                {
+                    DWRITE_TEXT_METRICS metrics{};
+                    if (SUCCEEDED(measure->GetMetrics(&metrics)))
+                    {
+                        textW = metrics.width;
+                        textH = metrics.height;
+                    }
+                }
+
+                constexpr float kPadX = 10.0f;
+                constexpr float kPadY = 5.0f;
+                const float tooltipW = textW + kPadX * 2.0f;
+                const float tooltipH = textH + kPadY * 2.0f;
+                const float hoverCenterX = info.firstDotCenterX
+                    + info.uniformSpacing
+                        * static_cast<float>(hoveredDot);
+                const float tooltipLeft = hoverCenterX - tooltipW * 0.5f;
+                const float tooltipTop = info.capsuleTop - tooltipH - 8.0f;
+                const RECT tooltipRect = MakeRect(
+                    static_cast<LONG>(std::floor(tooltipLeft)),
+                    static_cast<LONG>(std::floor(tooltipTop)),
+                    static_cast<LONG>(std::ceil(tooltipLeft + tooltipW)),
+                    static_cast<LONG>(std::ceil(tooltipTop + tooltipH)));
+
+                DrawD2DRoundedRectangle(
+                    ctx, tooltipRect, 6.0f,
+                    D2D1::ColorF(0.05f, 0.05f, 0.08f, 0.90f),
+                    D2D1::ColorF(0.4f, 0.6f, 1.0f, 0.40f),
+                    1.0f);
+                DrawD2DText(ctx, name, tooltipRect, fmt.Get(),
+                    D2D1::ColorF(0.95f, 0.96f, 1.0f, 0.95f));
+            }
+        }
     }
 }

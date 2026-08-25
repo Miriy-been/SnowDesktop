@@ -43,6 +43,19 @@ namespace
         catch (...) { return false; }
     }
 
+    bool ReadFloatField(const std::string& text, const char* field, float& out)
+    {
+        std::string marker = "\"" + std::string(field) + "\"";
+        size_t p = text.find(marker);
+        if (p == std::string::npos) return false;
+        p = text.find(':', p);
+        if (p == std::string::npos) return false;
+        p = text.find_first_not_of(" \t\r\n", p + 1);
+        if (p == std::string::npos) return false;
+        try { out = std::stof(text.substr(p)); return true; }
+        catch (...) { return false; }
+    }
+
     bool ReadStringField(const std::string& text, const char* field, char* out, size_t outSize)
     {
         std::string marker = "\"" + std::string(field) + "\"";
@@ -104,6 +117,13 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         if (theme >= 4) theme -= 2;
         settings.quickNavTheme = std::clamp(theme, 0, 3);
     }
+    float floatValue = 0.0f;
+    if (ReadFloatField(text, "pageDotsGap", floatValue))
+        settings.pageDotsGap = std::clamp(floatValue, 1.0f, 30.0f);
+    if (ReadFloatField(text, "pageDotsActiveRadius", floatValue))
+        settings.pageDotsActiveRadius = std::clamp(floatValue, 2.0f, 16.0f);
+    if (ReadBoolField(text, "pageDotsShowName", val))
+        settings.pageDotsShowName = val;
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
     return true;
 }
@@ -124,6 +144,10 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"desktopPassthroughHotkeyVirtualKey\": "
          << settings.desktopPassthroughHotkeyVirtualKey << ",\n";
     file << "  \"quickNavTheme\": " << settings.quickNavTheme << ",\n";
+    file << "  \"pageDotsGap\": " << settings.pageDotsGap << ",\n";
+    file << "  \"pageDotsActiveRadius\": " << settings.pageDotsActiveRadius << ",\n";
+    file << "  \"pageDotsShowName\": "
+         << (settings.pageDotsShowName ? "true" : "false") << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;

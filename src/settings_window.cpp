@@ -2118,6 +2118,23 @@ void SettingsWindow::DrawGeneralPage()
         generalSettingsDirty_ = true;
 
     ImGui::Spacing();
+    ImGui::SeparatorText(_L("app.settings.page_dots"));
+    ImGui::Spacing();
+    if (ImGui::SliderFloat("##PageDotsGap", &generalSettings_.pageDotsGap,
+            1.0f, 30.0f, "%.1f"))
+        generalSettingsDirty_ = true;
+    ImGui::SameLine();
+    ImGui::TextUnformatted(_L("app.settings.page_dots_gap"));
+    if (ImGui::SliderFloat("##PageDotsSize", &generalSettings_.pageDotsActiveRadius,
+            2.0f, 16.0f, "%.1f"))
+        generalSettingsDirty_ = true;
+    ImGui::SameLine();
+    ImGui::TextUnformatted(_L("app.settings.page_dots_size"));
+    if (DrawSettingCheckbox(_L("app.settings.page_dots_show_name"), "##PageDotsShowName",
+            &generalSettings_.pageDotsShowName))
+        generalSettingsDirty_ = true;
+
+    ImGui::Spacing();
     ImGui::SeparatorText(_L("app.settings.dock_bar"));
     ImGui::Spacing();
     DrawDockPage();

@@ -1841,6 +1841,7 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
         case kContextPageAdd: AddNewPage(); break;
         case kContextPageRename:
         {
+            needsDesktopFocus = false; // 编辑框已获得焦点，禁止后续抢焦点导致闪退
             POINT clientPoint = screenPoint;
             ScreenToClient(hwnd_, &clientPoint);
             const GridPage* clickedPage = GridPageFromPoint(clientPoint);

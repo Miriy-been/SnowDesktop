@@ -29,16 +29,26 @@ struct PageDotsGeometry
 
 /**
  * @brief 根据总页数计算圆点指示器几何参数。
- * @param totalPages 总页数（<=0 时所有派生字段保持 0）。
+ * @param totalPages      总页数（<=0 时所有派生字段保持 0）
+ * @param activeRadius    当前页圆点半径
+ * @param inactiveRadius  其它页圆点半径
+ * @param dotGap          圆点中心间距 - 2*radius
  * @return 完整几何结构（含计算结果）。
  */
-inline PageDotsGeometry ComputePageDotsGeometry(int totalPages)
+inline PageDotsGeometry ComputePageDotsGeometry(
+    int totalPages,
+    float activeRadius = 5.0f,
+    float inactiveRadius = 3.0f,
+    float dotGap = 6.0f)
 {
     PageDotsGeometry g;
     if (totalPages <= 0)
     {
         return g;
     }
+    g.activeRadius = activeRadius;
+    g.inactiveRadius = inactiveRadius;
+    g.dotGap = dotGap;
     g.uniformSpacing = g.inactiveRadius * 2.0f + g.dotGap;
     g.totalWidth = g.uniformSpacing * static_cast<float>(totalPages - 1)
         + g.activeRadius * 2.0f;

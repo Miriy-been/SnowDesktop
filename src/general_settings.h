@@ -21,6 +21,10 @@ struct GeneralSettings
     int quickNavTheme = 1;
     bool dockEnabled = false;
     char language[85] = "system";
+    // 常驻圆点分页指示器外观
+    float pageDotsGap = 6.0f;          ///< 圆点中心间距 - 2*radius（像素）
+    float pageDotsActiveRadius = 5.0f; ///< 当前页圆点半径（像素）
+    bool pageDotsShowName = true;      ///< 悬停圆点时显示页面名
 };
 
 std::wstring GetGeneralSettingsPath();
