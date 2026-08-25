@@ -609,6 +609,8 @@ private:
         bool hiddenMode = false);
     /** @brief 绘制翻页导航按钮（左右箭头）。 @param ctx D2D 设备上下文 */
     void DrawPageNavButtons(ID2D1DeviceContext* ctx);
+    /** @brief 绘制常驻圆点分页指示器（移动端风格，末屏底部居中）。 @param ctx D2D 设备上下文 */
+    void DrawPageDotsIndicator(ID2D1DeviceContext* ctx);
     /** @brief 绘制换页通知覆盖层（左上角角标，类似电视台换台）。 @param ctx D2D 设备上下文 */
     void DrawPageNotify(
         ID2D1DeviceContext* ctx,

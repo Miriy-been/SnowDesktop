@@ -810,6 +810,13 @@ if (BUILD_TESTING)
         INCLUDE_DIRECTORIES src
         LABELS rules animation)
 
+    snowdesktop_add_test(
+        SnowDesktopPageDotsGeometryTests
+        page_dots_geometry
+        SOURCES tests/page_dots_geometry_tests.cpp
+        INCLUDE_DIRECTORIES src
+        LABELS rules ui)
+
     add_custom_target(
         SnowDesktopTests
         DEPENDS ${SNOWDESKTOP_TEST_TARGETS})

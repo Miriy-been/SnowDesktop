@@ -91,6 +91,8 @@ void DesktopApp::OnPaint(const RECT* updateRect)
                 context.Get(),
                 forceCompleteGlassCollection ? nullptr : dcompUpdate,
                 desktopIconsHidden_);
+        if (!desktopIconsHidden_)
+            DrawPageDotsIndicator(context.Get());
         if (desktopIconsHidden_ && showHiddenHint_)
             DrawHiddenHintOverlay(context.Get());
 
