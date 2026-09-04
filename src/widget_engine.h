@@ -27,6 +27,7 @@
 #include "system_snapshot.h"
 #include "http_runtime.h"
 #include "calendar_service.h"
+#include "audio_spectrum.h"
 #include "widget_package.h"
 #include "steam_workshop_sync.h"
 
@@ -83,6 +84,10 @@ struct LuaWidgetManifest
         double minValue = 0.0;
         double maxValue = 100.0;
         std::vector<std::string> options;
+        // 条件可见性：仅当名为 visibleKey 的字段当前值等于 visibleValue 时才显示本项。
+        // 为空表示始终显示。用于"选择某预设后才露出对应滑块"这类联动。
+        std::string visibleKey;
+        std::string visibleValue;
     };
     struct SettingPreset
     {
@@ -381,6 +386,8 @@ public:
     using InlineTextEditCallback = std::function<void(const LuaInlineTextEditRequest&)>;
     using WidgetPanelOpenCallback = std::function<void(const LuaWidgetPanelRequest&)>;
     using WidgetPanelCloseCallback = std::function<void(const std::wstring&)>;
+    /** @brief 组件请求调整自身网格跨度的回调（widgetId, 目标列数, 目标行数） */
+    using WidgetResizeCallback = std::function<void(const std::wstring&, int, int)>;
     using HostInputFocusCallback = std::function<void()>;
     using NotifyCallback = std::function<void(const std::wstring&, const std::wstring&)>;
     using WidgetTimerRequestCallback = std::function<UINT_PTR(const std::wstring& widgetId, UINT intervalMs)>;
@@ -416,6 +423,8 @@ public:
     void SetHostInputFocusCallback(HostInputFocusCallback callback) { hostInputFocusCallback_ = std::move(callback); }
     /** @brief 设置打开组件设置面板回调 */
     void SetOpenWidgetSettingsCallback(WidgetTitleCallback callback) { openWidgetSettingsCallback_ = std::move(callback); }
+    /** @brief 设置组件请求调整自身网格跨度回调 */
+    void SetWidgetResizeCallback(WidgetResizeCallback callback) { widgetResizeCallback_ = std::move(callback); }
     void SetOpenWidgetPanelCallback(WidgetPanelOpenCallback callback) { openWidgetPanelCallback_ = std::move(callback); }
     void SetCloseWidgetPanelCallback(WidgetPanelCloseCallback callback) { closeWidgetPanelCallback_ = std::move(callback); }
     /** @brief 设置系统通知回调 */
@@ -837,6 +846,9 @@ public:
     void SetItemFontWeight(DWRITE_FONT_WEIGHT weight);
     void SetItemFontSizeScale(float scale);
     void RuntimeOpenWidgetSettings(const std::wstring& widgetId);
+    /** @brief 组件请求调整自身网格跨度（宿主按列/行缩放组件）。 */
+    void RuntimeRequestWidgetResize(const std::wstring& widgetId,
+        int columns, int rows);
     void RuntimeOpenWidgetPanel(const std::wstring& widgetId,
         std::wstring title, int width, int height);
     void RuntimeCloseWidgetPanel(const std::wstring& widgetId);
@@ -855,6 +867,18 @@ public:
     GpuSnapshot RuntimeGetGpuSnapshot(const std::wstring& widgetId);
     MediaSnapshot RuntimeGetMediaSnapshot(const std::wstring& widgetId);
     bool RuntimeMediaPlayPause();
+    /// 返回音频频谱频段能量（[0,1]），bandCount 个值；按需懒启动捕获线程。
+    std::vector<float> RuntimeGetAudioPeaks(int bandCount);
+    /// 音频频谱服务当前是否捕获到有效音频。
+    bool RuntimeAudioActive();
+    /// 设置音频频谱平滑系数（attack 越大上升越快，release 越大回落越快）。
+    void RuntimeSetAudioSmoothing(float attack, float release);
+    /// 设置音频频谱"有声音"判定阈值。
+    void RuntimeSetAudioActiveThreshold(float threshold);
+    /// 设置音频频谱频率平衡（-1 突出低频，+1 突出高频）。
+    void RuntimeSetAudioFrequencyBalance(float balance);
+    /// 设置音频频谱频段滑动平均窗口（参考 Rainmeter AverageSize，1..16）。
+    void RuntimeSetAudioAverageSize(int averageSize);
     bool RuntimeMediaNext();
     bool RuntimeMediaPrevious();
     bool RuntimeSetTimer(const std::wstring& widgetId, const std::string& name, int intervalMs, bool repeat);
@@ -945,6 +969,7 @@ private:
     WidgetTitleCallback openWidgetSettingsCallback_;   ///< 打开小部件设置面板的回调
     WidgetPanelOpenCallback openWidgetPanelCallback_;
     WidgetPanelCloseCallback closeWidgetPanelCallback_;
+    WidgetResizeCallback widgetResizeCallback_;          ///< 组件请求调整自身跨度的回调
     InvalidateCallback invalidateCallback_;            ///< 请求宿主重绘的回调
     DesktopPathAction desktopOpenCallback_;            ///< 打开桌面路径的回调
     DesktopPathAction desktopRevealCallback_;          ///< 在资源管理器中定位路径的回调
@@ -958,6 +983,9 @@ private:
     std::unique_ptr<
         snowdesktop::calendar::CalendarService>
         calendarService_;
+    std::unique_ptr<
+        snowdesktop::audio::AudioSpectrumService>
+        audioSpectrumService_;
     bool pendingCalendarSelectionChange_ = false;
     bool pendingCalendarEventsChange_ = false;
     bool systemSnapshotServiceStarted_ = false;

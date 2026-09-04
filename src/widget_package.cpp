@@ -521,6 +521,7 @@ bool IsKnownPermission(const std::string& permission)
         "desktop.action", "desktop.read", "everything.search",
         "media.action", "media.read", "network.http", "system.read",
         "ui.contextMenu", "ui.input", "ui.notify",
+        "audio.read",
     };
     return permissions.contains(permission);
 }

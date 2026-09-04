@@ -642,6 +642,9 @@ LRESULT DesktopApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         renameCommitPending_ = false;
         CommitRename(wp != 0);
         return 0;
+    case kWidgetResizeRequestMessage:
+        OnPendingWidgetResizeRequests();
+        return 0;
     case kShellFileOperationCompletedMessage:
         OnShellFileOperationCompleted(lp);
         return 0;

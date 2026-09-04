@@ -801,6 +801,9 @@ static LuaWidgetManifest::Setting ReadLuaSettingTable(lua_State* L, int tableInd
     }
     lua_pop(L, 1);
 
+    setting.visibleKey = LuaReadStorageField(L, tableIndex, "visibleKey");
+    setting.visibleValue = LuaReadStorageField(L, tableIndex, "visibleValue");
+
     if (setting.label.empty()) setting.label = setting.key;
     if (setting.type.empty()) setting.type = "text";
     return setting;
@@ -1592,6 +1595,74 @@ static int lua_MediaPrevious(lua_State* L)
     auto* s = GetD2D(L);
     lua_pushboolean(L, s && s->engine && s->engine->RuntimeMediaPrevious());
     return 1;
+}
+
+static int lua_AudioPeaks(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    int bands = 8;
+    if (lua_isnumber(L, 1))
+        bands = static_cast<int>(lua_tointeger(L, 1));
+    bands = std::clamp(bands, 1, 96);
+    std::vector<float> peaks = s->engine->RuntimeGetAudioPeaks(bands);
+    lua_createtable(L, static_cast<int>(peaks.size()), 0);
+    for (size_t i = 0; i < peaks.size(); ++i)
+    {
+        lua_pushnumber(L, static_cast<lua_Number>(peaks[i]));
+        lua_rawseti(L, -2, static_cast<int>(i) + 1);
+    }
+    return 1;
+}
+
+static int lua_AudioActive(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    lua_pushboolean(L, s && s->engine && s->engine->RuntimeAudioActive());
+    return 1;
+}
+
+static int lua_AudioSetSmoothing(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    const float attack = static_cast<float>(luaL_optnumber(L, 1, 0.42));
+    const float release = static_cast<float>(luaL_optnumber(L, 2, 0.36));
+    s->engine->RuntimeSetAudioSmoothing(attack, release);
+    return 0;
+}
+
+static int lua_AudioSetActiveThreshold(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    const float threshold = static_cast<float>(luaL_optnumber(L, 1, 0.05));
+    s->engine->RuntimeSetAudioActiveThreshold(threshold);
+    return 0;
+}
+
+static int lua_AudioSetBalance(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    const float balance = static_cast<float>(luaL_optnumber(L, 1, 0.15));
+    s->engine->RuntimeSetAudioFrequencyBalance(balance);
+    return 0;
+}
+
+static int lua_AudioSetAverageSize(lua_State* L)
+{
+    if (!RequirePermission(L, "audio.read")) return 0;
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    const int size = static_cast<int>(luaL_optinteger(L, 1, 6));
+    s->engine->RuntimeSetAudioAverageSize(size);
+    return 0;
 }
 
 static int lua_WidgetSetTimer(lua_State* L)
@@ -2615,6 +2686,17 @@ static int lua_WidgetOpenSettings(lua_State* L)
     auto* s = GetD2D(L);
     if (s && s->engine)
         s->engine->RuntimeOpenWidgetSettings(BoundWidgetId(L));
+    return 0;
+}
+
+static int lua_WidgetRequestResize(lua_State* L)
+{
+    auto* s = GetD2D(L);
+    if (!s || !s->engine) return 0;
+    const int columns = static_cast<int>(luaL_optinteger(L, 1, 0));
+    const int rows = static_cast<int>(luaL_optinteger(L, 2, 0));
+    if (columns <= 0 || rows <= 0) return 0;
+    s->engine->RuntimeRequestWidgetResize(BoundWidgetId(L), columns, rows);
     return 0;
 }
 
@@ -3690,7 +3772,7 @@ void WidgetEngine::PushSafeEnvironment(lua_State* L, const LuaWidget& widget)
     }
     for (const char* name : { "string", "table", "math", "utf8", "draw",
         "sys", "layout", "storage", "widget", "desktop", "media", "http",
-        "ui", "everything", "calendar" })
+        "ui", "everything", "calendar", "audio" })
     {
         PushReadOnlyGlobal(L, name);
         lua_setfield(L, -2, name);
@@ -4137,6 +4219,13 @@ bool WidgetEngine::RenderWidgetEditor(const std::wstring& widgetId,
         if (setting.key.empty() || IsHostStructureSettingKey(setting.key) ||
             IsHostAppearanceSettingKey(setting.key))
             return;
+        // 条件可见性：若声明了 visibleKey/visibleValue，仅当该字段当前值匹配时才显示。
+        if (!setting.visibleKey.empty())
+        {
+            const std::string depValue = getStorage(setting.visibleKey, "");
+            if (depValue != setting.visibleValue)
+                return;
+        }
         std::string current = getStorage(setting.key, setting.defaultValue);
         std::string next = current;
         bool changed = false;
@@ -5616,6 +5705,62 @@ bool WidgetEngine::RuntimeMediaPrevious()
     return systemSnapshotService_ && systemSnapshotService_->RequestMediaPrevious();
 }
 
+std::vector<float> WidgetEngine::RuntimeGetAudioPeaks(int bandCount)
+{
+    if (g_widgetDryLoad)
+        return std::vector<float>(std::max(1, bandCount), 0.0f);
+    if (!audioSpectrumService_)
+    {
+        audioSpectrumService_ =
+            std::make_unique<snowdesktop::audio::AudioSpectrumService>();
+    }
+    if (!audioSpectrumService_->Capturing())
+        audioSpectrumService_->Start();
+    return audioSpectrumService_->Peaks(std::max(1, bandCount));
+}
+
+bool WidgetEngine::RuntimeAudioActive()
+{
+    if (g_widgetDryLoad) return false;
+    return audioSpectrumService_ && audioSpectrumService_->Active();
+}
+
+void WidgetEngine::RuntimeSetAudioSmoothing(float attack, float release)
+{
+    if (g_widgetDryLoad) return;
+    if (!audioSpectrumService_)
+        audioSpectrumService_ =
+            std::make_unique<snowdesktop::audio::AudioSpectrumService>();
+    audioSpectrumService_->SetSmoothing(attack, release);
+}
+
+void WidgetEngine::RuntimeSetAudioActiveThreshold(float threshold)
+{
+    if (g_widgetDryLoad) return;
+    if (!audioSpectrumService_)
+        audioSpectrumService_ =
+            std::make_unique<snowdesktop::audio::AudioSpectrumService>();
+    audioSpectrumService_->SetActiveThreshold(threshold);
+}
+
+void WidgetEngine::RuntimeSetAudioFrequencyBalance(float balance)
+{
+    if (g_widgetDryLoad) return;
+    if (!audioSpectrumService_)
+        audioSpectrumService_ =
+            std::make_unique<snowdesktop::audio::AudioSpectrumService>();
+    audioSpectrumService_->SetFrequencyBalance(balance);
+}
+
+void WidgetEngine::RuntimeSetAudioAverageSize(int averageSize)
+{
+    if (g_widgetDryLoad) return;
+    if (!audioSpectrumService_)
+        audioSpectrumService_ =
+            std::make_unique<snowdesktop::audio::AudioSpectrumService>();
+    audioSpectrumService_->SetAverageSize(averageSize);
+}
+
 bool WidgetEngine::RuntimeSetTimer(const std::wstring& widgetId, const std::string& name,
     int intervalMs, bool repeat)
 {
@@ -6748,6 +6893,14 @@ void WidgetEngine::RuntimeOpenWidgetSettings(const std::wstring& widgetId)
     if (g_widgetDryLoad) return;
     if (openWidgetSettingsCallback_)
         openWidgetSettingsCallback_(widgetId, L"");
+}
+
+void WidgetEngine::RuntimeRequestWidgetResize(const std::wstring& widgetId,
+    int columns, int rows)
+{
+    if (g_widgetDryLoad) return;
+    if (widgetResizeCallback_)
+        widgetResizeCallback_(widgetId, columns, rows);
 }
 
 std::vector<WidgetDiagnosticEntry> WidgetEngine::GetWidgetDiagnostics() const
@@ -8305,6 +8458,7 @@ void WidgetEngine::RegisterDrawAPI(lua_State* L)
     lua_pushcfunction(L, lua_WidgetInfo); lua_setfield(L, -2, "info");
     lua_pushcfunction(L, lua_WidgetSetTitle); lua_setfield(L, -2, "setTitle");
     lua_pushcfunction(L, lua_WidgetOpenSettings); lua_setfield(L, -2, "openSettings");
+    lua_pushcfunction(L, lua_WidgetRequestResize); lua_setfield(L, -2, "requestResize");
     lua_pushcfunction(L, lua_WidgetOpenPanel); lua_setfield(L, -2, "openPanel");
     lua_pushcfunction(L, lua_WidgetClosePanel); lua_setfield(L, -2, "closePanel");
     lua_pushcfunction(L, lua_WidgetInvalidate); lua_setfield(L, -2, "invalidate");
@@ -8331,6 +8485,15 @@ void WidgetEngine::RegisterDrawAPI(lua_State* L)
     lua_pushcfunction(L, lua_MediaNext); lua_setfield(L, -2, "next");
     lua_pushcfunction(L, lua_MediaPrevious); lua_setfield(L, -2, "previous");
     lua_setglobal(L, "media");
+
+    lua_newtable(L);
+    lua_pushcfunction(L, lua_AudioPeaks); lua_setfield(L, -2, "peaks");
+    lua_pushcfunction(L, lua_AudioActive); lua_setfield(L, -2, "active");
+    lua_pushcfunction(L, lua_AudioSetSmoothing); lua_setfield(L, -2, "setSmoothing");
+    lua_pushcfunction(L, lua_AudioSetActiveThreshold); lua_setfield(L, -2, "setActiveThreshold");
+    lua_pushcfunction(L, lua_AudioSetBalance); lua_setfield(L, -2, "setBalance");
+    lua_pushcfunction(L, lua_AudioSetAverageSize); lua_setfield(L, -2, "setAverageSize");
+    lua_setglobal(L, "audio");
 
     lua_newtable(L);
     lua_pushcfunction(L, lua_HttpRequest); lua_setfield(L, -2, "request");

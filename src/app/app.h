@@ -2016,6 +2016,8 @@ private:
      * @param isMove 是否为移动操作
      */
     void PlaceWidgetWithDisplacement(size_t widgetIndex, GridCell targetCell, GridSpan targetSpan, bool isMove = false);
+    /** @brief 处理 Lua 组件请求的待定跨度调整（渲染结束后安全调用）。 */
+    void OnPendingWidgetResizeRequests();
     bool AddCollectionToGroup(size_t collectionIndex, size_t groupIndex,
         size_t insertIndex = static_cast<size_t>(-1));
     bool ReleaseCollectionFromGroup(const std::wstring& collectionId,
@@ -2766,6 +2768,8 @@ private:
     size_t widgetDockInsertIndex_ = 0;
     size_t widgetCollectionGroupTargetIndex_ = static_cast<size_t>(-1);
     size_t widgetCollectionGroupInsertIndex_ = static_cast<size_t>(-1);
+    /// Lua 组件经 widget.requestResize 提交、待渲染结束后统一处理的跨度请求
+    std::vector<std::pair<std::wstring, GridSpan>> pendingWidgetResizeRequests_;
     size_t dockHandoffDwellIndex_ = static_cast<size_t>(-1);
     DWORD dockHandoffDwellStartTick_ = 0;
     bool dockHandoffDwellReady_ = false;

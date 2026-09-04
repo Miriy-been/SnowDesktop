@@ -714,6 +714,14 @@ int DesktopApp::Run(HINSTANCE instance, int showCommand)
                 }
             }
         });
+        // Lua 组件请求调整自身跨度：渲染期间调用，收集后由自定义消息在
+        // 渲染循环结束后统一处理，避免在 range-for 遍历 widgets_ 时改布局。
+        widgetEngine_->SetWidgetResizeCallback([this](const std::wstring& widgetId, int columns, int rows) {
+            if (columns <= 0 || rows <= 0 || !hwnd_) return;
+            GridSpan span{ columns, rows };
+            pendingWidgetResizeRequests_.emplace_back(widgetId, span);
+            PostMessageW(hwnd_, kWidgetResizeRequestMessage, 0, 0);
+        });
         widgetEngine_->SetOpenWidgetPanelCallback(
             [this](const LuaWidgetPanelRequest& request) {
                 OpenLuaWidgetPanel(request);

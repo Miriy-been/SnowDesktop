@@ -775,8 +775,21 @@ restoring saved layouts, and reacting to grid changes.
 | `network.http` | `http.request`, `http.cancel` |
 | `calendar.read` | selected date, date helpers, event queries, calendar-change callback |
 | `calendar.write` | shared date selection and event create/update/delete |
+| `audio.read` | `audio.peaks`, `audio.active` (live spectrum of currently playing audio) |
 
 Missing permissions produce a runtime error for guarded APIs. Context menus and desktop-change callbacks are skipped by the host when their permission is absent.
+
+Audio spectrum (requires `audio.read`):
+
+```lua
+local bands = audio.peaks(24) -- table {1..24} floats in [0,1], live band energy
+local hasAudio = audio.active() -- boolean, true when non-silent audio is captured
+```
+
+The spectrum is captured from the default render device (loopback) in a
+background thread; band energy is smoothed with attack/release dynamics.
+`audio.peaks(bandCount)` accepts 1..64 bands. When nothing is playing the
+values decay toward zero.
 
 Declarative setting types are `text`, `bool`, `int`, `float`, `select`, and `color`.
 Values are stored in the same per-instance string storage used by `storage`.

@@ -218,3 +218,38 @@ void DesktopApp::PlaceWidgetWithDisplacement(size_t widgetIndex, GridCell target
     RebuildContainersAndItems();
     SaveLayoutSlots();
 }
+
+void DesktopApp::OnPendingWidgetResizeRequests()
+{
+    if (pendingWidgetResizeRequests_.empty())
+        return;
+    std::vector<std::pair<std::wstring, GridSpan>> requests;
+    requests.swap(pendingWidgetResizeRequests_);
+    for (const auto& [widgetId, span] : requests)
+    {
+        // 集合/文件组内的子组件不调整自身网格跨度（由容器负责排版）
+        bool isChild = false;
+        for (const auto& other : widgets_)
+        {
+            if (std::find(other.childWidgetIds.begin(),
+                    other.childWidgetIds.end(), widgetId) !=
+                other.childWidgetIds.end())
+            {
+                isChild = true;
+                break;
+            }
+        }
+        if (isChild)
+            continue;
+        for (size_t i = 0; i < widgets_.size(); ++i)
+        {
+            if (widgets_[i].id != widgetId ||
+                widgets_[i].type != DesktopWidgetType::LuaScript)
+                continue;
+            PlaceWidgetWithDisplacement(i, widgets_[i].gridCell, span, false);
+            break;
+        }
+    }
+    if (hwnd_)
+        InvalidateRect(hwnd_, nullptr, FALSE);
+}

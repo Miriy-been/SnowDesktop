@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "id": "460a6694-f54c-4d67-911b-d6677d23d57d",
+  "slug": "countdown",
+  "apiVersion": 1,
+  "dataVersion": 1,
+  "entry": "main.lua",
+  "minHostVersion": "1.0.1.0",
+  "author": "SnowDesktop",
+  "license": "GPL-3.0-only",
+  "name": "Countdown",
+  "nameKey": "lua_widget.countdown.name",
+  "version": "1.0.0",
+  "description": "Counts down to (or up from) a target date with a custom event title.",
+  "descriptionKey": "lua_widget.countdown.description",
+  "locales": {
+    "zh-CN": {
+      "lua_widget.countdown.name": "倒数日",
+      "lua_widget.countdown.description": "设置目标日期与事件标题，显示距离目标日期的剩余天数（支持已过去的正向计时）。",
+      "lua_widget.countdown.date_label": "目标日期 (YYYY-MM-DD)",
+      "lua_widget.countdown.name_label": "事件名称",
+      "lua_widget.countdown.days_left": "距离{0}还有{1}天",
+      "lua_widget.countdown.days_passed": "{0}已过去{1}天",
+      "lua_widget.countdown.today": "{0}就是今天",
+      "lua_widget.countdown.set_date": "请设置目标日期",
+      "lua_widget.countdown.default_name": "目标日",
+      "lua_widget.countdown.invalid_date": "日期格式无效",
+      "lua_widget.countdown.preview_introduction": "预览倒数日显示效果。"
+    },
+    "en-US": {
+      "lua_widget.countdown.name": "Countdown",
+      "lua_widget.countdown.description": "Counts down to (or up from) a target date with a custom event title.",
+      "lua_widget.countdown.date_label": "Target Date (YYYY-MM-DD)",
+      "lua_widget.countdown.name_label": "Event Name",
+      "lua_widget.countdown.days_left": "{1} days until {0}",
+      "lua_widget.countdown.days_passed": "{1} days since {0}",
+      "lua_widget.countdown.today": "{0} is today",
+      "lua_widget.countdown.set_date": "Set a target date",
+      "lua_widget.countdown.default_name": "Target Day",
+      "lua_widget.countdown.invalid_date": "Invalid date format",
+      "lua_widget.countdown.preview_introduction": "Preview the countdown widget."
+    },
+    "zh-TW": {
+      "lua_widget.countdown.name": "倒數日",
+      "lua_widget.countdown.description": "設定目標日期與事件標題，顯示距離目標日期的剩餘天數（支援已過去的正向計時）。",
+      "lua_widget.countdown.date_label": "目標日期 (YYYY-MM-DD)",
+      "lua_widget.countdown.name_label": "事件名稱",
+      "lua_widget.countdown.days_left": "距離{0}還有{1}天",
+      "lua_widget.countdown.days_passed": "{0}已過去{1}天",
+      "lua_widget.countdown.today": "{0}就是今天",
+      "lua_widget.countdown.set_date": "請設定目標日期",
+      "lua_widget.countdown.default_name": "目標日",
+      "lua_widget.countdown.invalid_date": "日期格式無效",
+      "lua_widget.countdown.preview_introduction": "預覽倒數日顯示效果。"
+    },
+    "ja-JP": {
+      "lua_widget.countdown.name": "カウントダウン",
+      "lua_widget.countdown.description": "目標日とイベント名を設定し、目標日までの残り日数を表示します（過去日からの経過日数にも対応）。",
+      "lua_widget.countdown.date_label": "目標日 (YYYY-MM-DD)",
+      "lua_widget.countdown.name_label": "イベント名",
+      "lua_widget.countdown.days_left": "{0}まであと{1}日",
+      "lua_widget.countdown.days_passed": "{0}から{1}日経過",
+      "lua_widget.countdown.today": "{0}は今日",
+      "lua_widget.countdown.set_date": "目標日を設定してください",
+      "lua_widget.countdown.default_name": "目標日",
+      "lua_widget.countdown.invalid_date": "日付形式が無効です",
+      "lua_widget.countdown.preview_introduction": "カウントダウン表示のプレビュー。"
+    },
+    "ko-KR": {
+      "lua_widget.countdown.name": "카운트다운",
+      "lua_widget.countdown.description": "목표 날짜와 이벤트 제목을 설정하고 목표 날짜까지 남은 일수를 표시합니다 (지난 날짜의 경과 일수 지원).",
+      "lua_widget.countdown.date_label": "목표 날짜 (YYYY-MM-DD)",
+      "lua_widget.countdown.name_label": "이벤트 이름",
+      "lua_widget.countdown.days_left": "{0}까지 {1}일 남음",
+      "lua_widget.countdown.days_passed": "{0} 이후 {1}일 경과",
+      "lua_widget.countdown.today": "{0}이(가) 오늘",
+      "lua_widget.countdown.set_date": "목표 날짜를 설정하세요",
+      "lua_widget.countdown.default_name": "목표일",
+      "lua_widget.countdown.invalid_date": "날짜 형식이 잘못되었습니다",
+      "lua_widget.countdown.preview_introduction": "카운트다운 미리보기."
+    },
+    "de-DE": {
+      "lua_widget.countdown.name": "Countdown",
+      "lua_widget.countdown.description": "Zählt die Tage bis zu (oder seit) einem Zieltermin mit benutzerdefiniertem Ereignistitel.",
+      "lua_widget.countdown.date_label": "Zieldatum (JJJJ-MM-TT)",
+      "lua_widget.countdown.name_label": "Ereignisname",
+      "lua_widget.countdown.days_left": "Noch {1} Tage bis {0}",
+      "lua_widget.countdown.days_passed": "{1} Tage seit {0}",
+      "lua_widget.countdown.today": "{0} ist heute",
+      "lua_widget.countdown.set_date": "Bitte Zieldatum festlegen",
+      "lua_widget.countdown.default_name": "Zieltag",
+      "lua_widget.countdown.invalid_date": "Ungültiges Datumsformat",
+      "lua_widget.countdown.preview_introduction": "Vorschau der Countdown-Anzeige."
+    },
+    "fr-FR": {
+      "lua_widget.countdown.name": "Compte à rebours",
+      "lua_widget.countdown.description": "Compte les jours restants jusqu'à (ou depuis) une date cible avec un titre d'événement personnalisé.",
+      "lua_widget.countdown.date_label": "Date cible (AAAA-MM-JJ)",
+      "lua_widget.countdown.name_label": "Nom de l'événement",
+      "lua_widget.countdown.days_left": "Encore {1} jours avant {0}",
+      "lua_widget.countdown.days_passed": "{1} jours depuis {0}",
+      "lua_widget.countdown.today": "{0} est aujourd'hui",
+      "lua_widget.countdown.set_date": "Définissez une date cible",
+      "lua_widget.countdown.default_name": "Jour cible",
+      "lua_widget.countdown.invalid_date": "Format de date invalide",
+      "lua_widget.countdown.preview_introduction": "Aperçu du compte à rebours."
+    },
+    "es-ES": {
+      "lua_widget.countdown.name": "Cuenta atrás",
+      "lua_widget.countdown.description": "Cuenta los días hasta (o desde) una fecha objetivo con un título de evento personalizado.",
+      "lua_widget.countdown.date_label": "Fecha objetivo (AAAA-MM-DD)",
+      "lua_widget.countdown.name_label": "Nombre del evento",
+      "lua_widget.countdown.days_left": "{1} días para {0}",
+      "lua_widget.countdown.days_passed": "{1} días desde {0}",
+      "lua_widget.countdown.today": "{0} es hoy",
+      "lua_widget.countdown.set_date": "Define una fecha objetivo",
+      "lua_widget.countdown.default_name": "Día objetivo",
+      "lua_widget.countdown.invalid_date": "Formato de fecha no válido",
+      "lua_widget.countdown.preview_introduction": "Vista previa de la cuenta atrás."
+    },
+    "es-419": {
+      "lua_widget.countdown.name": "Cuenta atrás",
+      "lua_widget.countdown.description": "Cuenta los días hasta (o desde) una fecha objetivo con un título de evento personalizado.",
+      "lua_widget.countdown.date_label": "Fecha objetivo (AAAA-MM-DD)",
+      "lua_widget.countdown.name_label": "Nombre del evento",
+      "lua_widget.countdown.days_left": "{1} días para {0}",
+      "lua_widget.countdown.days_passed": "{1} días desde {0}",
+      "lua_widget.countdown.today": "{0} es hoy",
+      "lua_widget.countdown.set_date": "Define una fecha objetivo",
+      "lua_widget.countdown.default_name": "Día objetivo",
+      "lua_widget.countdown.invalid_date": "Formato de fecha no válido",
+      "lua_widget.countdown.preview_introduction": "Vista previa de la cuenta atrás."
+    },
+    "pt-BR": {
+      "lua_widget.countdown.name": "Contagem regressiva",
+      "lua_widget.countdown.description": "Conta os dias até (ou desde) uma data-alvo com um título de evento personalizado.",
+      "lua_widget.countdown.date_label": "Data-alvo (AAAA-MM-DD)",
+      "lua_widget.countdown.name_label": "Nome do evento",
+      "lua_widget.countdown.days_left": "Faltam {1} dias para {0}",
+      "lua_widget.countdown.days_passed": "{1} dias desde {0}",
+      "lua_widget.countdown.today": "{0} é hoje",
+      "lua_widget.countdown.set_date": "Defina uma data-alvo",
+      "lua_widget.countdown.default_name": "Dia-alvo",
+      "lua_widget.countdown.invalid_date": "Formato de data inválido",
+      "lua_widget.countdown.preview_introduction": "Prévia da contagem regressiva."
+    }
+  },
+  "defaultSize": {
+    "columns": 2,
+    "rows": 2
+  },
+  "minSize": {
+    "columns": 1,
+    "rows": 1
+  },
+  "maxSize": {
+    "columns": 4,
+    "rows": 3
+  },
+  "permissions": [],
+  "previewData": {
+    "introduction": "Preview the countdown widget.",
+    "introductionKey": "lua_widget.countdown.preview_introduction",
+    "storage": {
+      "date": "2026-12-25",
+      "name": "Christmas"
+    }
+  }
+}

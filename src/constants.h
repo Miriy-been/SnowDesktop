@@ -196,6 +196,7 @@ constexpr UINT kShellChangeMessage = WM_APP + 2;
 constexpr UINT kIconLoadedMessage = WM_APP + 3;
 constexpr UINT kQuickNavigationAppsIndexedMessage = WM_APP + 4;
 constexpr UINT kCommitRenameMessage = WM_APP + 5;
+constexpr UINT kWidgetResizeRequestMessage = WM_APP + 6;
 constexpr UINT kShellFileOperationCompletedMessage = WM_APP + 7;
 constexpr UINT kForegroundInteractionChangedMessage = WM_APP + 8;
 constexpr UINT kFloatingDockBackdropCommitMessage = WM_APP + 9;

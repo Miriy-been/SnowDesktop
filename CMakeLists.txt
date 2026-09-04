@@ -196,6 +196,7 @@ set(SNOWDESKTOP_SOURCES
     src/core/desktop.cpp
     src/data_paths.cpp
     src/calendar_service.cpp
+    src/audio_spectrum.cpp
     src/full_data_backup.cpp
     src/portable_data_migration.cpp
     src/single_instance.cpp
