@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "左側",
   "app.settings.page_dots_right": "右側",
   "app.settings.page_dots_margin": "邊距",
+  "app.settings.wheel_turn_page": "Alt + 滑鼠滾輪翻頁",
+  "app.settings.wheel_turn_page_hint": "按住 Alt 滾動滾輪：向上=上一頁，向下=下一頁。",
   "app.settings.language": "語言",
   "app.settings.language_system": "跟隨系統",
   "app.settings.global_theme": "全域主題",

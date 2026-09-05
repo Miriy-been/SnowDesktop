@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "Links",
   "app.settings.page_dots_right": "Rechts",
   "app.settings.page_dots_margin": "Rand",
+  "app.settings.wheel_turn_page": "Mit Alt + Mausrad blättern",
+  "app.settings.wheel_turn_page_hint": "Alt gedrückt halten und Mausrad drehen: hoch = vorherige Seite, runter = nächste Seite.",
   "app.settings.language": "Sprache",
   "app.settings.language_system": "Systemstandard",
   "app.settings.global_theme": "Globales Thema",

@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "Izquierda",
   "app.settings.page_dots_right": "Derecha",
   "app.settings.page_dots_margin": "Margen",
+  "app.settings.wheel_turn_page": "Cambiar de página con Alt + rueda",
+  "app.settings.wheel_turn_page_hint": "Mantén Alt y gira la rueda: arriba = página anterior, abajo = siguiente.",
   "app.settings.language": "Idioma",
   "app.settings.language_system": "Valor predeterminado del sistema",
   "app.settings.global_theme": "Tema global",

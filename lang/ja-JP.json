@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "左",
   "app.settings.page_dots_right": "右",
   "app.settings.page_dots_margin": "余白",
+  "app.settings.wheel_turn_page": "Alt + ホイールでページ送り",
+  "app.settings.wheel_turn_page_hint": "Altを押しながらホイールを回します：上=前のページ、下=次のページ。",
   "app.settings.language": "言語",
   "app.settings.language_system": "システムデフォルト",
   "app.settings.global_theme": "グローバル テーマ",

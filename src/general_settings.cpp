@@ -143,6 +143,8 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.widgetFreePosition = val;
     if (ReadBoolField(text, "widgetHideBorder", val))
         settings.widgetHideBorder = val;
+    if (ReadBoolField(text, "altWheelTurnPage", val))
+        settings.altWheelTurnPage = val;
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
     return true;
 }
@@ -178,6 +180,8 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
          << (settings.widgetFreePosition ? "true" : "false") << ",\n";
     file << "  \"widgetHideBorder\": "
          << (settings.widgetHideBorder ? "true" : "false") << ",\n";
+    file << "  \"altWheelTurnPage\": "
+         << (settings.altWheelTurnPage ? "true" : "false") << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;

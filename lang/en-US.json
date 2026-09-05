@@ -158,6 +158,8 @@
     "app.settings.page_dots_left": "Left",
     "app.settings.page_dots_right": "Right",
     "app.settings.page_dots_margin": "Margin",
+    "app.settings.wheel_turn_page": "Turn pages with Alt + mouse wheel",
+    "app.settings.wheel_turn_page_hint": "Hold Alt and scroll the wheel: scroll up = previous page, down = next page.",
     "app.settings.language": "Language",
     "app.settings.language_system": "System Default",
     "app.settings.global_theme": "Global Theme",

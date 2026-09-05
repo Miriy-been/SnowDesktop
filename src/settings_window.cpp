@@ -2138,6 +2138,15 @@ void SettingsWindow::DrawGeneralPage()
     if (DrawSettingCheckbox(_L("app.settings.page_dots_show_name"), "##PageDotsShowName",
             &generalSettings_.pageDotsShowName))
         generalSettingsDirty_ = true;
+    if (DrawSettingCheckbox(_L("app.settings.wheel_turn_page"), "##AltWheelTurnPage",
+            &generalSettings_.altWheelTurnPage))
+        generalSettingsDirty_ = true;
+    if (generalSettings_.altWheelTurnPage)
+    {
+        ImGui::Indent();
+        ImGui::TextDisabled("%s", _L("app.settings.wheel_turn_page_hint"));
+        ImGui::Unindent();
+    }
     {
         BeginSettingRow(_L("app.settings.page_dots_color"), dotsControlW);
         const char* colorNames[] = {

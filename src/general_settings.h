@@ -34,6 +34,7 @@ struct GeneralSettings
     float pageDotsMargin = 32.0f;      ///< 距边距离（像素）
     bool widgetFreePosition = false;   ///< 全局自由摆放（不吸附网格）
     bool widgetHideBorder = false;     ///< 全局隐藏组件边框
+    bool altWheelTurnPage = true;      ///< Alt + 鼠标滚轮翻页
 };
 
 std::wstring GetGeneralSettingsPath();

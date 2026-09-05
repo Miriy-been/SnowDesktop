@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "왼쪽",
   "app.settings.page_dots_right": "오른쪽",
   "app.settings.page_dots_margin": "여백",
+  "app.settings.wheel_turn_page": "Alt + 휠로 페이지 넘기기",
+  "app.settings.wheel_turn_page_hint": "Alt를 누른 채 휠을 돌리면: 위=이전 페이지, 아래=다음 페이지.",
   "app.settings.language": "언어",
   "app.settings.language_system": "시스템 기본값",
   "app.settings.global_theme": "글로벌 테마",

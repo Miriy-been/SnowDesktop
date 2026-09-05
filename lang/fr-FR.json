@@ -158,6 +158,8 @@
   "app.settings.page_dots_left": "Gauche",
   "app.settings.page_dots_right": "Droite",
   "app.settings.page_dots_margin": "Marge",
+  "app.settings.wheel_turn_page": "Tourner les pages avec Alt + molette",
+  "app.settings.wheel_turn_page_hint": "Maintenez Alt et faites défiler : vers le haut = page précédente, vers le bas = page suivante.",
   "app.settings.language": "Langue",
   "app.settings.language_system": "Système par défaut",
   "app.settings.global_theme": "Thème global",
