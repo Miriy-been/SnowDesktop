@@ -111,9 +111,11 @@ RECT DesktopApp::GetItemIconRect(RECT bounds) const
             AvailableIconHeight(
                 cellH, topInset,
                 titleGap, textHeight);
-    // The title owns the bottom text band. Let the icon fill the remaining
-    // square area instead of capping it at the old fixed 64-pixel size.
-    const int iconSz = std::max(1, std::min(maxIconW, maxIconH));
+    // The title owns the bottom text band. 图标对齐 Windows 原生 medium 尺寸
+    // （100% DPI 下 48px），不再填满文字带以外的剩余空间。
+    const int iconSz = std::max(1, std::min({
+        static_cast<int>(std::round(48.0f * layoutScale)),
+        maxIconW, maxIconH }));
     const int iconX = bounds.left + (cellW - iconSz) / 2;
     const int iconY = bounds.top + topInset;
     return MakeRect(iconX, iconY, iconX + iconSz, iconY + iconSz);

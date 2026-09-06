@@ -619,7 +619,7 @@ void DesktopApp::ReloadItems(bool reloadLayoutFromDisk)
     // Mark widgets as used
     std::unordered_set<std::wstring> usedSlots;
     for (const auto& w : widgets_)
-        if (!IsGroupedWidget(w))
+        if (WidgetOccupiesGridSlots(w))
             MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
 
     // Mark items with valid existing positions as used; flag unslotted items

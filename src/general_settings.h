@@ -35,6 +35,7 @@ struct GeneralSettings
     bool widgetFreePosition = false;   ///< 全局自由摆放（不吸附网格）
     bool widgetHideBorder = false;     ///< 全局隐藏组件边框
     bool altWheelTurnPage = true;      ///< Alt + 鼠标滚轮翻页
+    bool hideOneDrivePersona = true;   ///< 隐藏桌面 OneDrive-Persona 占位符
 };
 
 std::wstring GetGeneralSettingsPath();

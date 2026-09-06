@@ -265,6 +265,7 @@ void DesktopApp::DrawItemText(ID2D1RenderTarget* context, RECT bounds,
         };
 
         std::wstring visibleText = text;
+        bool truncatedToLineLimit = false;
         if (!selected)
         {
             ComPtr<IDWriteTextLayout>
@@ -299,15 +300,33 @@ void DesktopApp::DrawItemText(ID2D1RenderTarget* context, RECT bounds,
                                         actualLineCount,
                                         2,
                                         text.size()));
+                        truncatedToLineLimit = true;
                     }
                 }
             }
         }
+        // 截断时追加省略号（Windows 原生样式）；配合下方 trimming sign，
+        // 若追加后第二行溢出会自动收敛为 “...” 结尾。
+        if (truncatedToLineLimit)
+            visibleText += L"...";
 
         ComPtr<IDWriteTextLayout> layout;
         if (!createConfiguredLayout(
                 visibleText, tw, th, layout))
             return;
+
+        // 未选中的标签启用省略号修剪：行尾放不下的内容以 “...” 收尾，
+        // 与原生桌面图标的两行 + 省略号展示一致。
+        if (!selected)
+        {
+            DWRITE_TRIMMING trimming{
+                DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
+            ComPtr<IDWriteInlineObject> trimmingSign;
+            if (SUCCEEDED(dwriteFactory_->CreateEllipsisTrimmingSign(
+                    itemTextFormat_.Get(), &trimmingSign)) &&
+                trimmingSign)
+                layout->SetTrimming(&trimming, trimmingSign.Get());
+        }
 
         DWRITE_TEXT_METRICS metrics{};
         layout->GetMetrics(&metrics);

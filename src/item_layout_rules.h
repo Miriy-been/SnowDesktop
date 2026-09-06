@@ -108,4 +108,64 @@ constexpr int AvailableIconHeight(
             std::max(0, textHeight));
 }
 
+inline bool ToUpperAsciiEqualsIgnoreCase(
+    std::wstring_view l,
+    std::wstring_view r)
+{
+    if (l.size() != r.size())
+        return false;
+    for (size_t i = 0; i < l.size(); ++i)
+    {
+        auto up = [](wchar_t c) -> wchar_t {
+            return (c >= L'a' && c <= L'z')
+                ? static_cast<wchar_t>(
+                    c - (L'a' - L'A'))
+                : c;
+        };
+        if (up(l[i]) != up(r[i]))
+            return false;
+    }
+    return true;
+}
+
+inline bool AsciiContainsIgnoreCase(
+    std::wstring_view text,
+    std::wstring_view needle)
+{
+    if (needle.empty())
+        return true;
+    if (needle.size() > text.size())
+        return false;
+    for (size_t i = 0;
+         i + needle.size() <= text.size(); ++i)
+        if (ToUpperAsciiEqualsIgnoreCase(
+                text.substr(i, needle.size()),
+                needle))
+            return true;
+    return false;
+}
+
+/**
+ * @brief 判断桌面项是否为 OneDrive-Persona 系统占位符。
+ *
+ * 该虚拟条目（显示名如 "OneDrive-Persona"）枚举时通常不带桌面图标 CLSID，
+ * 会被当作普通未放置项自动填入网格并随布局持久化，从而“重命名任意图标后
+ * 跳到桌面”且无法移动/删除。通过显示名（含 onedrive 与 persona）识别，
+ * 或通过 OneDrive Personal 的已知 CLSID 识别。
+ */
+inline bool IsOneDrivePersonaItem(
+    const std::wstring& name,
+    const std::wstring& desktopIconClsid)
+{
+    if (AsciiContainsIgnoreCase(
+            name, L"Persona") &&
+        AsciiContainsIgnoreCase(
+            name, L"OneDrive"))
+        return true;
+    // OneDrive - Personal 已知 CLSID（区分大小写，系统恒为大写）
+    return ToUpperAsciiEqualsIgnoreCase(
+        desktopIconClsid,
+        L"{018D5C66-4533-4307-9B53-224DE2ED1FE6}");
+}
+
 } // namespace snowdesktop::item_layout_rules

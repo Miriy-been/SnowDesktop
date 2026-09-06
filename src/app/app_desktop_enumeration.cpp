@@ -146,6 +146,15 @@ items_.clear();
         item.sysIconIndex = info.iIcon;
         item.layoutKey = GetStableLayoutKey(item.absolutePidl.get(), item.parsingName, item.desktopIconClsid);
 
+        // 隐藏 OneDrive-Persona 系统占位符：该虚拟项在桌面重枚举时会被当作
+        // 普通未放置项自动填入网格并持久化，导致“重命名任意图标后它跳到桌面”。
+        // 用户可在设置中切换（默认隐藏）。absolute/child 已移交给 item，直接跳过。
+        if (generalSettings_.hideOneDrivePersona &&
+            snowdesktop::item_layout_rules::
+                IsOneDrivePersonaItem(
+                    item.name, item.desktopIconClsid))
+            continue;
+
 auto oldIt = oldIconCache.find(ToUpperInvariant(item.layoutKey));
         if (oldIt != oldIconCache.end() && oldIt->second.sysIconIndex == item.sysIconIndex) {
             item.iconBitmap = oldIt->second.bitmap;

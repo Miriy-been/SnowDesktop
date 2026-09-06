@@ -182,6 +182,10 @@ public:
 
     void SetGeneralSettingsChangedCallback(std::function<void()> callback) { generalSettingsChangedCallback_ = std::move(callback); }
 
+    /// 桌面图标可见性/过滤设置变更回调（参数=hideOneDrivePersona 新值），用于触发桌面项重新枚举。
+    void SetIconVisibilityChangedCallback(std::function<void(bool)> callback)
+    { iconVisibilityChangedCallback_ = std::move(callback); }
+
     void SetLanguageChangedCallback(std::function<void()> callback) { languageChangedCallback_ = std::move(callback); }
 
     void SetDockEnabledChangedCallback(std::function<void(bool)> callback)
@@ -739,6 +743,7 @@ private:
 
     /// 通用设置变更回调
     std::function<void()> generalSettingsChangedCallback_;
+    std::function<void(bool)> iconVisibilityChangedCallback_;
 
     std::function<void()> languageChangedCallback_;
 
@@ -815,11 +820,11 @@ private:
     float iconSpacingScale_ = 1.0f;
     float componentSpacingScale_ = 1.0f;
 
-    /// 当前桌面项目字号
-    float itemFontSize_ = 15.0f;
+    /// 当前桌面项目字号（Windows 原生 = Segoe UI 9pt = 12px）
+    float itemFontSize_ = 12.0f;
 
     /// 当前桌面项目字体粗细 (DWRITE_FONT_WEIGHT)
-    float itemFontWeight_ = 600.0f;
+    float itemFontWeight_ = 400.0f;
 
     int shortcutArrowMode_ = 0;
 

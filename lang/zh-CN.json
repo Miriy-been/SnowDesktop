@@ -140,6 +140,8 @@
     "app.settings.desktop_passthrough_hotkey": "按住快捷键穿透桌面",
     "app.settings.desktop_passthrough_hotkey_hint": "按住时临时隐藏软件桌面，让鼠标操作传递给动态壁纸；松开后恢复。",
     "app.settings.double_click_hide": "双击空白处隐藏桌面",
+    "app.settings.hide_onedrive": "隐藏 OneDrive 图标",
+    "app.settings.hide_onedrive_persona": "隐藏桌面 OneDrive-Persona 系统占位符",
     "app.settings.page_dots": "分页指示器",
     "app.settings.page_dots_gap": "圆点间距",
     "app.settings.page_dots_size": "圆点大小",

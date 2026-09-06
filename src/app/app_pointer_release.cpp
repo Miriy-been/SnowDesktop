@@ -640,10 +640,39 @@ void DesktopApp::OnLeftButtonUp(WPARAM wp, LPARAM lp)
             else if (widgets_[mouseDownWidgetIndex_].freePosition ||
                 generalSettings_.widgetFreePosition)
             {
-                // 自由摆放：保存像素偏移，不碰撞检测
-                widgets_[mouseDownWidgetIndex_].freeOffsetX = widgetPreviewOffset_.x;
-                widgets_[mouseDownWidgetIndex_].freeOffsetY = widgetPreviewOffset_.y;
-                widgets_[mouseDownWidgetIndex_].freePosition = true;
+                // 自由摆放：保存像素偏移，不碰撞检测。但把偏移钳制在页面
+                // 工作区内，避免组件被拖出屏幕外。
+                DesktopWidget& fw = widgets_[mouseDownWidgetIndex_];
+                extern inline const GridPage* FindGridPage(
+                    const std::vector<GridPage>&, const std::wstring&);
+                const GridPage* fPage = FindGridPage(
+                    gridPages_, fw.gridCell.pageId);
+                RECT fBase = GetGridRect(
+                    gridPages_, fw.gridCell, fw.gridSpan);
+                if (fPage && fBase.right > fBase.left &&
+                    fBase.bottom > fBase.top)
+                {
+                    // 允许区间：把组件完整放进工作区
+                    int minX = fPage->workArea.left - fBase.left;
+                    int maxX = fPage->workArea.right - fBase.right;
+                    int minY = fPage->workArea.top - fBase.top;
+                    int maxY = fPage->workArea.bottom - fBase.bottom;
+                    // 组件比工作区还大时，退化为“让左上角保持在屏内”
+                    if (maxX < minX)
+                        maxX = fPage->workArea.right - fBase.left;
+                    if (maxY < minY)
+                        maxY = fPage->workArea.bottom - fBase.top;
+                    fw.freeOffsetX = std::clamp(
+                        static_cast<int>(widgetPreviewOffset_.x), minX, maxX);
+                    fw.freeOffsetY = std::clamp(
+                        static_cast<int>(widgetPreviewOffset_.y), minY, maxY);
+                }
+                else
+                {
+                    fw.freeOffsetX = widgetPreviewOffset_.x;
+                    fw.freeOffsetY = widgetPreviewOffset_.y;
+                }
+                fw.freePosition = true;
                 LayoutItems();
                 RebuildContainersAndItems();
                 SaveLayoutSlots();

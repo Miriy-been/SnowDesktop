@@ -140,6 +140,8 @@
   "app.settings.desktop_passthrough_hotkey": "Segure o atalho para passar pela área de trabalho",
   "app.settings.desktop_passthrough_hotkey_hint": "Oculte temporariamente a área de trabalho do software enquanto a pressiona para que a entrada do mouse alcance o papel de parede ao vivo; solte para restaurá-lo.",
   "app.settings.double_click_hide": "Clique duas vezes na área vazia para ocultar a área de trabalho",
+  "app.settings.hide_onedrive": "Ocultar ícone do OneDrive",
+  "app.settings.hide_onedrive_persona": "Ocultar o marcador de posição OneDrive-Persona",
   "app.settings.page_dots": "Indicador de página",
   "app.settings.page_dots_gap": "Espaçamento dos pontos",
   "app.settings.page_dots_size": "Tamanho dos pontos",

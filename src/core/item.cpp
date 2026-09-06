@@ -93,7 +93,7 @@ Container* DesktopIcon::GetContainer() const { return container_; }
  *   1. 悬停背景（半透明白色圆角矩形）
  *   2. 选中背景（灰色圆角矩形）
  *   3. 图标位图（支持剪切透明度与拖拽透明度叠加）
- *   4. 文字标签（拖拽状态下不绘制）
+ *   4. 文字标签（拖拽虚影随图标一起半透明绘制，对齐 Windows 原生效果）
  */
 void DesktopIcon::Draw(ID2D1DeviceContext* context, RECT rect, int state)
 {
@@ -115,10 +115,15 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
 
     if (hovered && !selected)
     {
+        // 悬停框与选中框使用同一几何（图标∪标签再外扩少量 padding），
+        // 圆角对齐原生 Win11 桌面的 4px；不再占满整个网格单元格。
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
-        app_->DrawD2DRoundedRectangle(context, rect,
+            : 4.0f * app_->GetItemLayoutScale(rect);
+        RECT hoverRect = quickNavLayout
+            ? rect
+            : app_->GetItemSelectionRect(rect, false);
+        app_->DrawD2DRoundedRectangle(context, hoverRect,
             radius,
             lightTheme ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.06f * alpha)
                        : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.08f * alpha),
@@ -132,16 +137,17 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
 
     if (selected && !dragged)
     {
-        RECT sel = quickNavLayout ? rect : app_->GetItemSelectionRect(rect, true);
+        // 选中框与悬停框同几何：包裹图标 + 两行标签，宽高比接近原生（宽>高）。
+        RECT sel = quickNavLayout ? rect : app_->GetItemSelectionRect(rect, false);
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
+            : 4.0f * app_->GetItemLayoutScale(rect);
         app_->DrawD2DRoundedRectangle(context, sel,
             radius,
             lightTheme ? D2D1::ColorF(0.20f, 0.40f, 0.70f, 0.18f * alpha)
-                       : D2D1::ColorF(0.55f, 0.55f, 0.55f, 0.34f * alpha),
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.20f * alpha),
             lightTheme ? D2D1::ColorF(0.25f, 0.50f, 0.80f, 0.40f * alpha)
-                       : D2D1::ColorF(0.78f, 0.78f, 0.78f, 0.55f * alpha));
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.55f * alpha));
     }
 
     if (item_->iconState == IconState::Loading)
@@ -168,8 +174,10 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
         item_->iconState != IconState::Loading)
         app_->DrawShortcutArrowOverlay(context, iconRect, alpha);
 
-    if (!dragged && drawText)
-        app_->DrawItemText(context, rect, item_->name, selected, alpha, lightTheme);
+    if (drawText)
+        // 统一紧凑两行绘制（选中时不再三行展开撑高，使选中框能完整包裹文字）
+        app_->DrawItemText(context, rect, item_->name,
+            false, alpha, lightTheme);
 }
 
 /**
@@ -271,10 +279,14 @@ void FolderEntryIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, boo
 
     if (hovered && !selected)
     {
+        // 与 DesktopIcon 一致：悬停框与选中框同几何，圆角 4px。
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
-        app_->DrawD2DRoundedRectangle(context, rect,
+            : 4.0f * app_->GetItemLayoutScale(rect);
+        RECT hoverRect = quickNavLayout
+            ? rect
+            : app_->GetItemSelectionRect(rect, false);
+        app_->DrawD2DRoundedRectangle(context, hoverRect,
             radius,
             lightTheme ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.06f * opacity)
                        : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.08f * opacity),
@@ -288,16 +300,17 @@ void FolderEntryIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, boo
 
     if (selected && !dragged)
     {
+        // 选中框与悬停框同几何（包裹图标 + 两行标签，宽>高），与 DesktopIcon 一致。
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
+            : 4.0f * app_->GetItemLayoutScale(rect);
         app_->DrawD2DRoundedRectangle(context,
-            quickNavLayout ? rect : app_->GetItemSelectionRect(rect, true),
+            quickNavLayout ? rect : app_->GetItemSelectionRect(rect, false),
             radius,
             lightTheme ? D2D1::ColorF(0.20f, 0.40f, 0.70f, 0.18f * opacity)
-                       : D2D1::ColorF(0.55f, 0.55f, 0.55f, 0.34f * opacity),
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.20f * opacity),
             lightTheme ? D2D1::ColorF(0.25f, 0.50f, 0.80f, 0.40f * opacity)
-                       : D2D1::ColorF(0.78f, 0.78f, 0.78f, 0.55f * opacity));
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.55f * opacity));
     }
 
     if (entry_->iconState == IconState::Loading)
@@ -325,7 +338,8 @@ void FolderEntryIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, boo
         app_->DrawShortcutArrowOverlay(context, iconRect, opacity);
 
     if (!dragged && drawText)
-        app_->DrawItemText(context, rect, entry_->name, selected, opacity, lightTheme);
+        app_->DrawItemText(context, rect, entry_->name,
+            false, opacity, lightTheme);
 }
 
 /**

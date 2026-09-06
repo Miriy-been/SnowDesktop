@@ -6,7 +6,7 @@
 namespace snowdesktop::widget_spacing_rules
 {
 
-inline constexpr float kMinimumScale = 0.50f;
+inline constexpr float kMinimumScale = 0.01f;
 inline constexpr float kMaximumScale = 2.00f;
 inline constexpr float kMaximumComponentScale = 8.00f;
 

@@ -140,6 +140,8 @@
   "app.settings.desktop_passthrough_hotkey": "Tastenkürzel gedrückt halten, um den Desktop zu durchklicken",
   "app.settings.desktop_passthrough_hotkey_hint": "Der Software-Desktop wird vorübergehend ausgeblendet, damit die Mauseingabe das Live-Hintergrundbild erreicht. Zum Wiederherstellen loslassen.",
   "app.settings.double_click_hide": "Doppelklicken Sie auf den leeren Bereich, um den Desktop auszublenden",
+  "app.settings.hide_onedrive": "OneDrive-Symbol ausblenden",
+  "app.settings.hide_onedrive_persona": "OneDrive-Persona-Platzhalter ausblenden",
   "app.settings.page_dots": "Seitenindikator",
   "app.settings.page_dots_gap": "Punktabstand",
   "app.settings.page_dots_size": "Punktgröße",

@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 .trae/
+logs/
 .vscode/
 *.user
 *.suo

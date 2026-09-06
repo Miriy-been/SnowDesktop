@@ -145,6 +145,8 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.widgetHideBorder = val;
     if (ReadBoolField(text, "altWheelTurnPage", val))
         settings.altWheelTurnPage = val;
+    if (ReadBoolField(text, "hideOneDrivePersona", val))
+        settings.hideOneDrivePersona = val;
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
     return true;
 }
@@ -182,6 +184,8 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
          << (settings.widgetHideBorder ? "true" : "false") << ",\n";
     file << "  \"altWheelTurnPage\": "
          << (settings.altWheelTurnPage ? "true" : "false") << ",\n";
+    file << "  \"hideOneDrivePersona\": "
+         << (settings.hideOneDrivePersona ? "true" : "false") << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;

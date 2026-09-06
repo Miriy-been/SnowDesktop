@@ -416,6 +416,16 @@ int DesktopApp::Run(HINSTANCE instance, int showCommand)
             if (quickNavigationOpen_)
                 InvalidateQuickNavigationWindow();
         });
+        // 桌面图标过滤（隐藏 OneDrive-Persona）变更：更新应用侧并立即重枚举。
+        settingsWindow_->SetIconVisibilityChangedCallback([this](bool hide) {
+            if (generalSettings_.hideOneDrivePersona != hide)
+            {
+                generalSettings_.hideOneDrivePersona = hide;
+                ReloadItems(false);
+                if (hwnd_)
+                    InvalidateRect(hwnd_, nullptr, TRUE);
+            }
+        });
         settingsWindow_->SetLanguageChangedCallback([this]() {
             ApplyLanguageChange();
         });

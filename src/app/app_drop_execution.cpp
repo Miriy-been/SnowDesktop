@@ -156,6 +156,9 @@ bool DesktopApp::ExecuteInternalDropPlan(const DragSourceList& sourceList,
             items_[it->desktopIndex].slot = SlotFromCell(gridPages_, landing.cell);
             changed = true;
         }
+        // 桌面插入：被拖图标可能精确落在被占格上，顺延被挤到的未选中图标。
+        if (changed)
+            ResolveDesktopInsertionCollisions(sourceList);
         if (changed)
         {
             LayoutItems();

@@ -313,7 +313,18 @@ void DesktopApp::OnKeyDown(WPARAM key)
         break;
     case VK_ESCAPE:
         restoreFloatingDockLayer = true;
-        if (!luaWidgetPanelRequest_.widgetId.empty())
+        if (dragSession_.IsActive())
+        {
+            // 原生行为：拖拽过程中按 Esc 取消拖拽，图标留在原位。
+            // 虚影只是渲染副本，模型未动，直接结束会话即可。
+            EndDragSession();
+            HideDragHintWindow();
+            mouseDown_ = false;
+            mouseDownHit_ = nullptr;
+            ReleaseCapture();
+            InvalidateRect(hwnd_, nullptr, FALSE);
+        }
+        else if (!luaWidgetPanelRequest_.widgetId.empty())
             CloseLuaWidgetPanel(
                 luaWidgetPanelRequest_.widgetId,
                 "escape");

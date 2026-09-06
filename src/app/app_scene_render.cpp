@@ -508,7 +508,9 @@ void DesktopApp::DrawDynamicOverlays(
             DrawLuaWidgetPanel(ctx);
     }
 
-    // Dragged items at offset
+    // Dragged items at offset：跟随鼠标的半透明虚影（Windows 原生风格）。
+    // 桌面图标拖拽不绘制落点占位框（见 DesktopGrid::DrawDropPreview），
+    // 仅以虚影跟随鼠标，释放后吸附到最近网格空位。
     if (dragSession_.IsActive() && !dragSession_.Items().empty())
     {
         POINT current = dragSession_.CurrentPoint();

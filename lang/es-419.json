@@ -140,6 +140,8 @@
   "app.settings.desktop_passthrough_hotkey": "Mantenga presionado el acceso directo para pasar por el escritorio",
   "app.settings.desktop_passthrough_hotkey_hint": "Oculte temporalmente el escritorio del software mientras lo mantiene presionado para que la entrada del mouse llegue al fondo de pantalla en vivo; suelte para restaurarlo.",
   "app.settings.double_click_hide": "Haga doble clic en el área vacía para ocultar el escritorio",
+  "app.settings.hide_onedrive": "Ocultar el ícono de OneDrive",
+  "app.settings.hide_onedrive_persona": "Ocultar el marcador de posición de OneDrive-Persona",
   "app.settings.page_dots": "Indicador de página",
   "app.settings.page_dots_gap": "Espaciado de puntos",
   "app.settings.page_dots_size": "Tamaño de puntos",

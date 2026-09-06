@@ -428,7 +428,11 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
                     + info.uniformSpacing
                         * static_cast<float>(hoveredDot);
                 const float tooltipLeft = hoverCenterX - tooltipW * 0.5f;
-                const float tooltipTop = info.capsuleTop - tooltipH - 8.0f;
+                // 圆点在顶部时气泡放到下方，否则放到上方，避免顶部气泡超出屏幕。
+                const float tooltipTop =
+                    (generalSettings_.pageDotsVertical == 1)
+                        ? info.capsuleTop + info.capsuleHeight + 8.0f
+                        : info.capsuleTop - tooltipH - 8.0f;
                 const RECT tooltipRect = MakeRect(
                     static_cast<LONG>(std::floor(tooltipLeft)),
                     static_cast<LONG>(std::floor(tooltipTop)),

@@ -266,8 +266,19 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
         !containers_.empty() && sourceList.origin == containers_.front().get();
     if (desktopToDesktopMove)
     {
-        std::vector<PendingGridMove> moves = BuildSelectedMove(targetCell);
-        if (moves.empty()) return landings;
+        // 插入模式：让被拖图标精确落到目标格（允许与占用者重叠），
+        // 重叠由 ExecuteInternalDropPlan 里的 ResolveDesktopInsertionCollisions
+        // 把被挤到的图标向后顺延（对齐“插入到某图标下方”的原生手感）。
+        std::vector<PendingGridMove> moves =
+            BuildSelectedMove(targetCell, /*allowOverlap=*/true);
+        if (moves.empty())
+        {
+            // 目标越界等异常时退回就近放置
+            moves = BuildNearestSelectedMove(targetCell);
+            if (moves.empty())
+                moves = BuildFallbackPerItemMove(sourceList, targetCell);
+            if (moves.empty()) return landings;
+        }
 
         for (const auto& entry : sourceList.entries)
         {
@@ -316,7 +327,7 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
 
     std::unordered_set<std::wstring> usedSlots;
     for (const auto& w : widgets_)
-        if (!IsGroupedWidget(w))
+        if (WidgetOccupiesGridSlots(w))
             MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
     for (const auto& item : items_)
     {

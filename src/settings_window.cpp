@@ -2117,6 +2117,16 @@ void SettingsWindow::DrawGeneralPage()
         &generalSettings_.doubleClickHideDesktop))
         generalSettingsDirty_ = true;
 
+    if (DrawSettingCheckbox(_L("app.settings.hide_onedrive_persona"), "##HideOneDrivePersona",
+        &generalSettings_.hideOneDrivePersona))
+    {
+        generalSettingsDirty_ = true;
+        // 过滤项变化：立即用新值更新应用侧并重新枚举桌面图标。
+        if (iconVisibilityChangedCallback_)
+            iconVisibilityChangedCallback_(
+                generalSettings_.hideOneDrivePersona);
+    }
+
     ImGui::Spacing();
     ImGui::SeparatorText(_L("app.settings.page_dots"));
     ImGui::Spacing();
@@ -2507,7 +2517,7 @@ void SettingsWindow::DrawDisplayPage()
 
     BeginSettingRow(_L("app.settings.icon_spacing"), sliderActionW);
     ImGui::SetNextItemWidth(actionSliderW);
-    if (ImGui::SliderInt("##IconSpacing", &displaySpacingPct_, 50, 200, "%d%%", ImGuiSliderFlags_None))
+    if (ImGui::SliderInt("##IconSpacing", &displaySpacingPct_, 1, 200, "%d%%", ImGuiSliderFlags_None))
     {
         iconSpacingScale_ = displaySpacingPct_ / 100.0f;
         markChanged();
@@ -2546,7 +2556,7 @@ void SettingsWindow::DrawDisplayPage()
     if (BlueButton((std::string(_L("app.settings.restore_default")) +
         "##ItemFontSizeDefault").c_str(), ImVec2(resetW, 0)))
     {
-        itemFontSize_ = 15.0f;
+        itemFontSize_ = 12.0f;
         markChanged();
     }
 
@@ -2559,7 +2569,7 @@ void SettingsWindow::DrawDisplayPage()
     if (BlueButton((std::string(_L("app.settings.restore_default")) +
         "##ItemFontWeightDefault").c_str(), ImVec2(resetW, 0)))
     {
-        itemFontWeight_ = 600.0f;
+        itemFontWeight_ = 400.0f;
         markChanged();
     }
 
@@ -3129,12 +3139,12 @@ void SettingsWindow::DrawPersonalizationPage()
         ClampComponentScale(componentSpacingScale_, componentSpacingMaximum);
     componentSpacingPct_ = std::clamp(
         static_cast<int>(std::round(componentSpacingScale_ * 100.0f)),
-        50, componentSpacingMax);
+        1, componentSpacingMax);
     BeginSettingRow(_L("app.settings.component_spacing"), sliderActionW,
         _L("app.settings.component_spacing_hint"));
     ImGui::SetNextItemWidth(actionSliderW);
     if (ImGui::SliderInt("##ComponentSpacing", &componentSpacingPct_,
-        50, componentSpacingMax, "%d%%", ImGuiSliderFlags_None))
+        1, componentSpacingMax, "%d%%", ImGuiSliderFlags_None))
     {
         componentSpacingScale_ = snowdesktop::widget_spacing_rules::
             ClampComponentScale(

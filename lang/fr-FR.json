@@ -140,6 +140,8 @@
   "app.settings.desktop_passthrough_hotkey": "Maintenez le raccourci pour passer par le bureau",
   "app.settings.desktop_passthrough_hotkey_hint": "Masquez temporairement le bureau du logiciel lorsque vous maintenez le doigt enfoncé afin que la saisie de la souris atteigne le fond d'écran animé ; relâchez pour le restaurer.",
   "app.settings.double_click_hide": "Double-cliquez sur la zone vide pour masquer le bureau",
+  "app.settings.hide_onedrive": "Masquer l'icône OneDrive",
+  "app.settings.hide_onedrive_persona": "Masquer le placeholder OneDrive-Persona",
   "app.settings.page_dots": "Indicateur de page",
   "app.settings.page_dots_gap": "Espacement des points",
   "app.settings.page_dots_size": "Taille des points",

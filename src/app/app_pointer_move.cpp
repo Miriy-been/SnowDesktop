@@ -708,6 +708,46 @@ void DesktopApp::OnMouseMove(WPARAM wp, LPARAM lp)
         else if (!UpdateDragPageNavigation(current))
             return;
 
+        // ── 图标拖拽悬浮到分页圆点：直接跳转到对应页面 ──
+        // 仅桌面网格源（桌面图标/文件夹）生效，迁移范式与 UpdateDragPageNavigation 一致；
+        // 与组件拖拽的圆点跳页并行，各自只在对应的拖拽会话里触发。
+        if (dragSession_.Source() == GetDesktopGrid())
+        {
+            const int dragDotIndex = HitTestPageDotsIndicator(current);
+            if (dragDotIndex >= 0 && dragDotIndex <= MaxPageOffset() &&
+                dragDotIndex != pageOffset_)
+            {
+                const bool hasInternalItems = !dragSession_.Items().empty();
+                const POINT oldGroupOrigin{
+                    dragGroupOriginX_, dragGroupOriginY_ };
+                pageOffset_ = dragDotIndex;
+                ApplyPageMapping();
+                if (hasInternalItems && !groupedEntryDrag)
+                    MigrateSelectedItemsToLastMonitorPage();
+                LayoutItems();
+
+                if (!dragSession_.IsActive() ||
+                    (hasInternalItems && dragSession_.Items().empty()))
+                {
+                    mouseDownHit_ = nullptr;
+                    mouseDown_ = false;
+                    return;
+                }
+
+                InvalidateDragStaticScene();
+                if (hasInternalItems && !groupedEntryDrag)
+                {
+                    UpdateDragGroupOrigin();
+                    dragSession_.AdjustForGroupOriginChange(
+                        oldGroupOrigin,
+                        { dragGroupOriginX_, dragGroupOriginY_ });
+                }
+                cachedDropPreview_ = {};
+                cachedDropPreviewPoint_ = { -1, -1 };
+                SaveLayoutSlots();
+            }
+        }
+
         // OO hit testing: iterate all containers in reverse (topmost first)
         Container* targetContainer = nullptr;
         Slot* targetSlot = nullptr;

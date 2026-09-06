@@ -124,7 +124,7 @@ void DesktopApp::LoadLayoutSlots()
             static_cast<int>(*document.itemFontWeight));
 
     if (document.iconSpacing &&
-        *document.iconSpacing >= 0.5f &&
+        *document.iconSpacing >= 0.01f &&
         *document.iconSpacing <= 2.0f)
         iconSpacingScale_ = *document.iconSpacing;
 

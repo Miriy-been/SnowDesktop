@@ -869,6 +869,11 @@ private:
     size_t DockFolderEntryCount() const;
     bool IsGroupedCollection(const DesktopWidget& widget) const;
     bool IsGroupedWidget(const DesktopWidget& widget) const;
+    /** @brief 组件是否处于自由摆放（单个 freePosition 或全局开关）。 */
+    bool IsWidgetFreePositioned(const DesktopWidget& widget) const;
+    /** @brief 组件是否占用桌面网格格位。被分组收纳的不占；自由摆放的组件
+     *         视觉已移走，不再占用其原型网格格位，便于图标落到那里。 */
+    bool WidgetOccupiesGridSlots(const DesktopWidget& widget) const;
     size_t FindCollectionGroupIndexForChild(const std::wstring& childId) const;
     size_t FindFileGroupIndexForChild(const std::wstring& childId) const;
     bool IsRecycleBinDockEntry(const DockEntry& entry) const;
@@ -1557,7 +1562,25 @@ private:
      * @param targetCell 目标单元格
      * @return 待处理的移动列表
      */
-    std::vector<PendingGridMove> BuildSelectedMove(GridCell targetCell) const;
+    std::vector<PendingGridMove> BuildSelectedMove(GridCell targetCell, bool allowOverlap = false) const;
+    /**
+     * @brief 插入顺延：把被拖图标放到目标格（允许重叠）后，把同页被挤到/
+     *        冲突的未选中图标沿读取顺序向后顺延到最近空位。
+     * @param sourceList 被拖源（用于识别不要被挤动的选中项）
+     */
+    void ResolveDesktopInsertionCollisions(
+        const DragSourceList& sourceList);
+    /**
+     * @brief 就近原则兜底①：页内按曼哈顿距离最近搜索可用整组落点。
+     * @return 搜索到的移动计划；页内无可放位置时返回空列表。
+     */
+    std::vector<PendingGridMove> BuildNearestSelectedMove(GridCell targetCell) const;
+    /**
+     * @brief 就近原则兜底②：整组放置失败时，逐项就近放到最近空闲单元。
+     * @return 逐项移动计划（可能只包含部分项）。
+     */
+    std::vector<PendingGridMove> BuildFallbackPerItemMove(
+        const DragSourceList& sourceList, GridCell targetCell) const;
     /**
      * @brief 构建桌面区域的放置预览列表。
      * @param sourceList 拖拽源列表
@@ -2538,7 +2561,8 @@ private:
     float iconSpacingScale_ = 1.0f;
     float componentSpacingScale_ = 1.0f;
     float itemFontSize_ = kItemFontSize;
-    DWRITE_FONT_WEIGHT itemFontWeight_ = DWRITE_FONT_WEIGHT_SEMI_BOLD;
+    // Windows 原生桌面标签为 Regular 字重
+    DWRITE_FONT_WEIGHT itemFontWeight_ = DWRITE_FONT_WEIGHT_NORMAL;
     int shortcutArrowMode_ = 0;
     bool iconBeautifyEnabled_ = false;
     int iconBeautifyMode_ = 0;
