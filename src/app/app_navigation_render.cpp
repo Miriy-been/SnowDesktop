@@ -330,12 +330,60 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
 
     // 背景胶囊（hover 时略提亮，提示可交互）
     const bool capsuleHovered = hoveredDot >= 0;
-    const float capsuleAlpha = p.widgetAlpha * (capsuleHovered ? 0.85f : 0.65f);
+    // 胶囊外观来源：跟随全局 / 全局主题 / 自定义（与天气小组件「外观」一致）。
+    // `p` 即主工作区全局外观，作为「跟随全局」时的来源。
+    PersonalizationSettings capsuleAppearance = p;
+    bool capsuleCustom = false;
+    if (!generalSettings_.pageDotsCapsuleFollowGlobal)
+    {
+        static const int kCapsuleThemePresets[6] = {
+            kAppearancePresetDark, kAppearancePresetLight,
+            kAppearancePresetGlassDark, kAppearancePresetGlassLight,
+            kAppearancePresetAcrylicDark, kAppearancePresetAcrylicLight };
+        const int theme =
+            std::clamp(generalSettings_.pageDotsCapsuleTheme, 0, 6);
+        if (theme == 6)
+            capsuleCustom = true;
+        else
+            capsuleAppearance =
+                MakeAppearancePreset(kCapsuleThemePresets[theme]);
+    }
+    float capsuleBgR = capsuleAppearance.widgetBgR;
+    float capsuleBgG = capsuleAppearance.widgetBgG;
+    float capsuleBgB = capsuleAppearance.widgetBgB;
+    float capsuleBgAlpha = capsuleAppearance.widgetAlpha;
+    float capsuleBorderR = capsuleAppearance.widgetBorderR;
+    float capsuleBorderG = capsuleAppearance.widgetBorderG;
+    float capsuleBorderB = capsuleAppearance.widgetBorderB;
+    float capsuleBorderAlpha = capsuleAppearance.widgetBorderAlpha;
+    if (capsuleCustom)
+    {
+        capsuleBgR = static_cast<float>(
+            generalSettings_.pageDotsCapsuleColorR) / 255.0f;
+        capsuleBgG = static_cast<float>(
+            generalSettings_.pageDotsCapsuleColorG) / 255.0f;
+        capsuleBgB = static_cast<float>(
+            generalSettings_.pageDotsCapsuleColorB) / 255.0f;
+        capsuleBgAlpha = generalSettings_.pageDotsCapsuleAlpha;
+        capsuleBorderR = static_cast<float>(
+            generalSettings_.pageDotsCapsuleBorderR) / 255.0f;
+        capsuleBorderG = static_cast<float>(
+            generalSettings_.pageDotsCapsuleBorderG) / 255.0f;
+        capsuleBorderB = static_cast<float>(
+            generalSettings_.pageDotsCapsuleBorderB) / 255.0f;
+        capsuleBorderAlpha = generalSettings_.pageDotsCapsuleBorderAlpha;
+    }
+    // hover 视觉强化：填充略提亮、边框更清晰，提示可交互。
+    if (capsuleHovered)
+    {
+        capsuleBgAlpha = std::min(1.0f, capsuleBgAlpha * 1.15f);
+        capsuleBorderAlpha = std::min(1.0f, capsuleBorderAlpha * 1.7f);
+    }
     {
         ComPtr<ID2D1SolidColorBrush> bg;
         ctx->CreateSolidColorBrush(
-            D2D1::ColorF(p.widgetBgR, p.widgetBgG, p.widgetBgB,
-                capsuleAlpha),
+            D2D1::ColorF(capsuleBgR, capsuleBgG, capsuleBgB,
+                capsuleBgAlpha),
             &bg);
         if (bg) ctx->FillRoundedRectangle(
             D2D1::RoundedRect(
@@ -349,8 +397,8 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
 
         ComPtr<ID2D1SolidColorBrush> border;
         ctx->CreateSolidColorBrush(
-            D2D1::ColorF(p.widgetBorderR, p.widgetBorderG, p.widgetBorderB,
-                capsuleHovered ? 0.22f : 0.10f),
+            D2D1::ColorF(capsuleBorderR, capsuleBorderG, capsuleBorderB,
+                capsuleBorderAlpha),
             &border);
         if (border) ctx->DrawRoundedRectangle(
             D2D1::RoundedRect(
@@ -369,8 +417,8 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
         const bool isHovered = (i == hoveredDot);
         float radius = isActive ? info.activeRadius : info.inactiveRadius;
         if (isHovered) radius = info.activeRadius + 1.5f;
-        const float alpha = isActive ? (isHovered ? 1.0f : 0.85f)
-            : (isHovered ? 0.90f : 0.35f);
+        const float alpha = isActive ? 1.0f
+            : (isHovered ? 0.90f : 0.50f);
         const float centerX = info.firstDotCenterX
             + info.uniformSpacing * static_cast<float>(i);
 
@@ -384,6 +432,22 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
                 D2D1::Point2F(centerX, info.dotsCenterY),
                 radius, radius),
             dotBrush.Get());
+
+        // 当前页强调：在 active 圆点外加一圈浅色光环，强化当前页可辨识度
+        if (isActive)
+        {
+            ComPtr<ID2D1SolidColorBrush> haloBrush;
+            ctx->CreateSolidColorBrush(
+                D2D1::ColorF(dotR, dotG, dotB, 0.35f), &haloBrush);
+            if (haloBrush)
+            {
+                ctx->DrawEllipse(
+                    D2D1::Ellipse(
+                        D2D1::Point2F(centerX, info.dotsCenterY),
+                        radius + 2.5f, radius + 2.5f),
+                    haloBrush.Get(), 1.5f);
+            }
+        }
     }
 
     // hover 提示：显示悬停圆点对应页面的名字

@@ -1280,6 +1280,8 @@ private:
         int width, int height, UINT dpi, bool hovered);
     /** @brief 显示 Dock 栏体上下文菜单。 @param screenPoint 屏幕坐标 */
     void ShowDockContextMenu(POINT screenPoint);
+    /** @brief 显示分页圆点指示器右键菜单（快速切换常用外观项）。 */
+    void ShowPageDotsContextMenu(POINT screenPoint);
     /** @brief 显示 Dock 运行区应用上下文菜单。 */
     void ShowDockRunningAppContextMenu(
         POINT screenPoint, size_t runningIndex);

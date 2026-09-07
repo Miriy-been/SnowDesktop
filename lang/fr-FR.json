@@ -2,6 +2,8 @@
   "app.settings.title": "Paramètres de SnowDesktop",
   "app.settings.general": "Général",
   "app.settings.appearance": "Apparence",
+    "app.settings.nav_group_desktop": "Bureau",
+    "app.settings.nav_group_data": "Données",
   "app.settings.category": "Catégories",
   "app.settings.backup": "Sauvegarde",
   "app.settings.about": "À propos de",

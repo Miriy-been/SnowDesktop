@@ -191,6 +191,15 @@ constexpr UINT kContextDockRemoveFrequentItem = 41809;
 constexpr UINT kContextDockCloseApplication = 41810;
 constexpr UINT kContextDockKeepWhenHiddenOn = 41811;
 constexpr UINT kContextDockKeepWhenHiddenOff = 41812;
+// ── 分页圆点指示器右键菜单命令 ──────────────────
+constexpr UINT kContextPageDotsShowName = 41900;
+constexpr UINT kContextPageDotsColorFirst = 41901; // 跟随主题/白/黑/蓝
+constexpr UINT kContextPageDotsColorLast = 41904;
+constexpr UINT kContextPageDotsVerticalFirst = 41910; // 底部/顶部
+constexpr UINT kContextPageDotsVerticalLast = 41911;
+constexpr UINT kContextPageDotsHorizontalFirst = 41912; // 居中/左/右
+constexpr UINT kContextPageDotsHorizontalLast = 41914;
+constexpr UINT kContextPageDotsDetailedSettings = 41920; // 详情设置
 
 // ── 外壳变更通知 ──────────────────────────────
 constexpr UINT kShellChangeMessage = WM_APP + 2;

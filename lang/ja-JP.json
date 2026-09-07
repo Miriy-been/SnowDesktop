@@ -2,6 +2,8 @@
   "app.settings.title": "SnowDesktop の設定",
   "app.settings.general": "一般",
   "app.settings.appearance": "外観",
+    "app.settings.nav_group_desktop": "デスクトップ",
+    "app.settings.nav_group_data": "データ",
   "app.settings.category": "カテゴリ",
   "app.settings.backup": "バックアップ",
   "app.settings.about": "について",

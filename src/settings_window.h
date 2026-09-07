@@ -118,6 +118,8 @@ public:
     void ShowDockSettings();
     /** @brief 显示设置窗口并直接切换到外观页面。 */
     void ShowAppearanceSettings();
+    /** @brief 显示设置窗口并打开分页指示器的「组件设置」编辑器页。 */
+    void ShowPageDotsEditor();
     void ShowWidgetMigration();
 
     /**
@@ -444,7 +446,15 @@ private:
     /**
      * @brief 绘制个性化设置页面（背景、字体等外观选项）
      */
-    void DrawPersonalizationPage();
+    void DrawAppearanceThemePage();
+    /** @brief 绘制「桌面图标」外观页（间距、字号、图标美化）。 */
+    void DrawAppearanceDesktopIconsPage();
+    /** @brief 绘制「小组件外观」页（分页指示器外观）。 */
+    void DrawWidgetsAppearancePage();
+    /** @brief 绘制「悬浮拓展坞」页。 */
+    void DrawDockSettingsPage();
+    /** @brief 绘制「系统任务栏」页（任务栏覆盖外观与动态规则）。 */
+    void DrawTaskbarPage();
 
     void DrawDockPage();
 
@@ -490,6 +500,14 @@ private:
      * @brief 绘制小组件编辑器页面（脚本编辑与保存）
      */
     void DrawWidgetEditorPage();
+    /**
+     * @brief 绘制分页指示器编辑器页面（组件设置）。
+     */
+    void DrawPageDotsEditorPage();
+    /**
+     * @brief 绘制分页指示器的属性控件（间距/大小/颜色/胶囊/位置等）。
+     */
+    void DrawPageDotsControls();
 
     /**
      * @brief 绘制调试页面（内部状态查看与诊断信息）
@@ -627,8 +645,12 @@ private:
     /// 系统 DPI 缩放比例，用于字体和界面缩放适配
     float dpiScale_ = 1.0f;
 
-    /// 当前活动页面索引（8 = Lua 组件包与迁移）
+    /// 当前活动页面索引
     int activePage_ = 0;
+    /// 「外观」导航分组是否展开
+    bool appearanceGroupOpen_ = true;
+    /// 是否正在显示分页指示器「组件设置」编辑器页
+    bool editingPageDots_ = false;
     std::string widgetPackageStatus_;
     std::string pendingWidgetPackageUninstall_;
     std::filesystem::path widgetCatalogPath_;

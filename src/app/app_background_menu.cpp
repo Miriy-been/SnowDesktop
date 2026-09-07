@@ -482,6 +482,181 @@ void DesktopApp::ShowGridAdjustmentMenu(POINT screenPoint, UINT initialCommand)
     RestoreInteractionInputFocus();
 }
 
+void DesktopApp::ShowPageDotsContextMenu(POINT screenPoint)
+{
+    lastContextMenuScreenPoint_ = screenPoint;
+    PrepareMenuIconsForPoint(screenPoint);
+
+    auto buildItems = [&]() {
+        using snowdesktop::modern_menu::Item;
+        std::vector<Item> items;
+
+        Item showName;
+        showName.command = kContextPageDotsShowName;
+        showName.label = _LW("app.settings.page_dots_show_name");
+        showName.glyph = L"\uE7C3";
+        showName.checked = generalSettings_.pageDotsShowName;
+        items.push_back(std::move(showName));
+
+        items.push_back({ 0, L"", L"", false, false, true });
+
+        // 颜色模式（省略自定义色，需滑块调色，留给完整设置）
+        Item color;
+        color.label = _LW("app.settings.page_dots_color");
+        color.glyph = L"\uF1FC";
+        const char* colorKeys[] = {
+            "app.settings.page_dots_color_theme",
+            "app.settings.page_dots_color_white",
+            "app.settings.page_dots_color_black",
+            "app.settings.page_dots_color_blue",
+        };
+        for (int mode = 0; mode < 4; ++mode)
+        {
+            Item child;
+            child.command = kContextPageDotsColorFirst +
+                static_cast<UINT>(mode);
+            child.label = _LW(colorKeys[mode]);
+            child.checked =
+                generalSettings_.pageDotsColorMode == mode;
+            color.children.push_back(std::move(child));
+        }
+        items.push_back(std::move(color));
+
+        // 垂直位置
+        Item vertical;
+        vertical.label = _LW("app.settings.page_dots_vertical");
+        vertical.glyph = L"\uE7C2";
+        const char* verticalKeys[] = {
+            "app.settings.page_dots_bottom",
+            "app.settings.page_dots_top",
+        };
+        for (int v = 0; v < 2; ++v)
+        {
+            Item child;
+            child.command = kContextPageDotsVerticalFirst +
+                static_cast<UINT>(v);
+            child.label = _LW(verticalKeys[v]);
+            child.checked = generalSettings_.pageDotsVertical == v;
+            vertical.children.push_back(std::move(child));
+        }
+        items.push_back(std::move(vertical));
+
+        // 水平位置
+        Item horizontal;
+        horizontal.label = _LW("app.settings.page_dots_horizontal");
+        horizontal.glyph = L"\uE8F4";
+        const char* horizontalKeys[] = {
+            "app.settings.page_dots_center",
+            "app.settings.page_dots_left",
+            "app.settings.page_dots_right",
+        };
+        for (int h = 0; h < 3; ++h)
+        {
+            Item child;
+            child.command = kContextPageDotsHorizontalFirst +
+                static_cast<UINT>(h);
+            child.label = _LW(horizontalKeys[h]);
+            child.checked = generalSettings_.pageDotsHorizontal == h;
+            horizontal.children.push_back(std::move(child));
+        }
+        items.push_back(std::move(horizontal));
+
+        items.push_back({ 0, L"", L"", false, false, true });
+        Item details;
+        details.command = kContextPageDotsDetailedSettings;
+        // 与天气等小组件的「组件设置」一致
+        details.label = _LW("app.interact.detailed_settings");
+        details.glyph = L"\uE713";
+        items.push_back(std::move(details));
+
+        return items;
+    };
+
+    auto applyCommand = [&](UINT command) {
+        bool changed = false;
+        if (command == kContextPageDotsShowName)
+        {
+            generalSettings_.pageDotsShowName =
+                !generalSettings_.pageDotsShowName;
+            changed = true;
+        }
+        else if (command >= kContextPageDotsColorFirst &&
+            command <= kContextPageDotsColorLast)
+        {
+            const int mode =
+                static_cast<int>(command - kContextPageDotsColorFirst);
+            if (generalSettings_.pageDotsColorMode != mode)
+            {
+                generalSettings_.pageDotsColorMode = mode;
+                changed = true;
+            }
+        }
+        else if (command >= kContextPageDotsVerticalFirst &&
+            command <= kContextPageDotsVerticalLast)
+        {
+            const int v = static_cast<int>(
+                command - kContextPageDotsVerticalFirst);
+            if (generalSettings_.pageDotsVertical != v)
+            {
+                generalSettings_.pageDotsVertical = v;
+                changed = true;
+            }
+        }
+        else if (command >= kContextPageDotsHorizontalFirst &&
+            command <= kContextPageDotsHorizontalLast)
+        {
+            const int h = static_cast<int>(
+                command - kContextPageDotsHorizontalFirst);
+            if (generalSettings_.pageDotsHorizontal != h)
+            {
+                generalSettings_.pageDotsHorizontal = h;
+                changed = true;
+            }
+        }
+        else
+        {
+            return false; // 详情设置等一次性命令：菜单返回后另行处理
+        }
+        if (changed)
+        {
+            SaveGeneralSettings(GetGeneralSettingsPath().c_str(),
+                generalSettings_);
+            if (hwnd_)
+                InvalidateRect(hwnd_, nullptr, TRUE);
+        }
+        return changed;
+    };
+
+    std::vector<snowdesktop::modern_menu::Item> items = buildItems();
+    snowdesktop::modern_menu::Options options;
+    options.owner = hwnd_;
+    options.anchor = screenPoint;
+    options.dpi = menuIconDpi_;
+    options.lightTheme = menuLightTheme_;
+    options.appearance = static_cast<
+        snowdesktop::modern_menu::Appearance>(menuAppearanceStyle_);
+    ConfigureModernMenuEventPump(options);
+    options.onCommand = [&](UINT command, auto& currentItems) {
+        if (!applyCommand(command))
+            return false;
+        currentItems = buildItems();
+        return true;
+    };
+
+    SetForegroundWindow(hwnd_);
+    const UINT command = snowdesktop::modern_menu::Show(items, options).command;
+    ClearMenuIcons();
+    RestoreDesktopWindowLayer();
+    RestoreInteractionInputFocus();
+
+    // 「组件设置」：打开分页指示器的专门编辑页。
+    if (command == kContextPageDotsDetailedSettings)
+    {
+        if (settingsWindow_)
+            settingsWindow_->ShowPageDotsEditor();
+    }
+}
+
 snowdesktop::component_preview::Bitmap
 DesktopApp::RenderWidgetMenuPreview(
     const std::shared_ptr<snowdesktop::WidgetPreviewScene>& scene,

@@ -2,6 +2,8 @@
   "app.settings.title": "SnowDesktop 設定",
   "app.settings.general": "一般",
   "app.settings.appearance": "外觀",
+    "app.settings.nav_group_desktop": "桌面",
+    "app.settings.nav_group_data": "資料",
   "app.settings.category": "分類設定",
   "app.settings.backup": "備份",
   "app.settings.about": "關於",

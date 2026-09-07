@@ -2,6 +2,8 @@
   "app.settings.title": "SnowDesktop 설정",
   "app.settings.general": "일반",
   "app.settings.appearance": "외관",
+    "app.settings.nav_group_desktop": "데스크톱",
+    "app.settings.nav_group_data": "데이터",
   "app.settings.category": "카테고리",
   "app.settings.backup": "백업",
   "app.settings.about": "소개",

@@ -2,6 +2,8 @@
     "app.settings.title": "SnowDesktop Settings",
     "app.settings.general": "General",
     "app.settings.appearance": "Appearance",
+    "app.settings.nav_group_desktop": "Desktop",
+    "app.settings.nav_group_data": "Data",
     "app.settings.category": "Categories",
     "app.settings.backup": "Backup",
     "app.settings.about": "About",

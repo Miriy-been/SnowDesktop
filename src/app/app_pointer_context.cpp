@@ -66,6 +66,16 @@ void DesktopApp::OnRightButtonUp(LPARAM lp)
     POINT screenPt = pt;
     ClientToScreen(hwnd_, &screenPt);
 
+    // 分页圆点指示器：右键弹出其专属快捷设置菜单，避免回退为桌面背景菜单。
+    const PageDotsLayoutInfo dotsInfo = ComputePageDotsLayout();
+    if (dotsInfo.valid && PtInRect(&dotsInfo.capsule, pt))
+    {
+        ClearSelection();
+        InvalidateRect(hwnd_, nullptr, FALSE);
+        ShowPageDotsContextMenu(screenPt);
+        return;
+    }
+
     if (DockContainer* dock = GetDockContainerAtPoint(pt))
     {
         if (DockEntryItem* dockItem = dock->EntryAtPoint(pt))

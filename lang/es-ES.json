@@ -2,6 +2,8 @@
   "app.settings.title": "Configuración de SnowDesktop",
   "app.settings.general": "General",
   "app.settings.appearance": "Apariencia",
+    "app.settings.nav_group_desktop": "Escritorio",
+    "app.settings.nav_group_data": "Datos",
   "app.settings.category": "Categorías",
   "app.settings.backup": "Copia de seguridad",
   "app.settings.about": "Acerca de",

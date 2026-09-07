@@ -139,6 +139,26 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.pageDotsHorizontal = std::clamp(intValue, 0, 2);
     if (ReadFloatField(text, "pageDotsMargin", floatValue))
         settings.pageDotsMargin = std::clamp(floatValue, 8.0f, 100.0f);
+    if (ReadBoolField(text, "pageDotsCapsuleFollowGlobal", val))
+        settings.pageDotsCapsuleFollowGlobal = val;
+    if (ReadIntField(text, "pageDotsCapsuleTheme", intValue))
+        settings.pageDotsCapsuleTheme = std::clamp(intValue, 0, 6);
+    if (ReadIntField(text, "pageDotsCapsuleColorR", intValue))
+        settings.pageDotsCapsuleColorR = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsCapsuleColorG", intValue))
+        settings.pageDotsCapsuleColorG = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsCapsuleColorB", intValue))
+        settings.pageDotsCapsuleColorB = std::clamp(intValue, 0, 255);
+    if (ReadFloatField(text, "pageDotsCapsuleAlpha", floatValue))
+        settings.pageDotsCapsuleAlpha = std::clamp(floatValue, 0.0f, 1.0f);
+    if (ReadIntField(text, "pageDotsCapsuleBorderR", intValue))
+        settings.pageDotsCapsuleBorderR = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsCapsuleBorderG", intValue))
+        settings.pageDotsCapsuleBorderG = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsCapsuleBorderB", intValue))
+        settings.pageDotsCapsuleBorderB = std::clamp(intValue, 0, 255);
+    if (ReadFloatField(text, "pageDotsCapsuleBorderAlpha", floatValue))
+        settings.pageDotsCapsuleBorderAlpha = std::clamp(floatValue, 0.0f, 1.0f);
     if (ReadBoolField(text, "widgetFreePosition", val))
         settings.widgetFreePosition = val;
     if (ReadBoolField(text, "widgetHideBorder", val))
@@ -178,6 +198,26 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"pageDotsVertical\": " << settings.pageDotsVertical << ",\n";
     file << "  \"pageDotsHorizontal\": " << settings.pageDotsHorizontal << ",\n";
     file << "  \"pageDotsMargin\": " << settings.pageDotsMargin << ",\n";
+    file << "  \"pageDotsCapsuleFollowGlobal\": "
+         << (settings.pageDotsCapsuleFollowGlobal ? "true" : "false") << ",\n";
+    file << "  \"pageDotsCapsuleTheme\": "
+         << settings.pageDotsCapsuleTheme << ",\n";
+    file << "  \"pageDotsCapsuleColorR\": "
+         << settings.pageDotsCapsuleColorR << ",\n";
+    file << "  \"pageDotsCapsuleColorG\": "
+         << settings.pageDotsCapsuleColorG << ",\n";
+    file << "  \"pageDotsCapsuleColorB\": "
+         << settings.pageDotsCapsuleColorB << ",\n";
+    file << "  \"pageDotsCapsuleAlpha\": "
+         << settings.pageDotsCapsuleAlpha << ",\n";
+    file << "  \"pageDotsCapsuleBorderR\": "
+         << settings.pageDotsCapsuleBorderR << ",\n";
+    file << "  \"pageDotsCapsuleBorderG\": "
+         << settings.pageDotsCapsuleBorderG << ",\n";
+    file << "  \"pageDotsCapsuleBorderB\": "
+         << settings.pageDotsCapsuleBorderB << ",\n";
+    file << "  \"pageDotsCapsuleBorderAlpha\": "
+         << settings.pageDotsCapsuleBorderAlpha << ",\n";
     file << "  \"widgetFreePosition\": "
          << (settings.widgetFreePosition ? "true" : "false") << ",\n";
     file << "  \"widgetHideBorder\": "
