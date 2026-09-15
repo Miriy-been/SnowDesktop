@@ -510,6 +510,12 @@ struct DesktopWidget
     bool privacyMode = false;
     bool scrollContainerMode = false;
     bool largeFolderTitleless = false;
+    // 组件锁定：锁定后不可拖动/缩放（删除仍可经菜单）。
+    bool locked = false;
+    // 自由摆放：不吸附网格，bounds = 网格位 + freeOffset。
+    bool freePosition = false;
+    int freeOffsetX = 0;
+    int freeOffsetY = 0;
     bool userRenamed = false; // Compatibility mirror of !customTitle.empty().
     bool dateHeaders = false;
     bool showFileCategories = false;

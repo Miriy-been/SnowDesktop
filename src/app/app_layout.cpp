@@ -407,6 +407,10 @@ void DesktopApp::LoadLayoutSlots()
                 document.collectionLargeFolderTitleless,
                 saved.largeFolderTitleless);
         widget.keepWhenDesktopHidden = saved.keepWhenDesktopHidden;
+        widget.locked = saved.locked;
+        widget.freePosition = saved.freePosition;
+        widget.freeOffsetX = saved.freeOffsetX;
+        widget.freeOffsetY = saved.freeOffsetY;
         widget.showTitle = saved.showTitle.value_or(
             widget.type != DesktopWidgetType::LuaScript);
         widget.bottomBarHover = saved.bottomBarHover.value_or(
@@ -1012,6 +1016,10 @@ bool DesktopApp::SaveLayoutSlots()
              << (w.largeFolderTitleless ? "true" : "false")
              << ", \"keepWhenDesktopHidden\": "
              << (w.keepWhenDesktopHidden ? "true" : "false")
+             << ", \"locked\": " << (w.locked ? "true" : "false")
+             << ", \"freePosition\": " << (w.freePosition ? "true" : "false")
+             << ", \"freeOffsetX\": " << w.freeOffsetX
+             << ", \"freeOffsetY\": " << w.freeOffsetY
              << ", \"showTitle\": " << (w.showTitle ? "true" : "false")
              << ", \"bottomBarHover\": " << (w.bottomBarHover ? "true" : "false")
              << ", \"userRenamed\": " << (hasCustomTitle ? "true" : "false")

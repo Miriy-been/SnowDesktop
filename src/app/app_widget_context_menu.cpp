@@ -688,6 +688,9 @@ void DesktopApp::ShowWidgetContextMenu(
     const UINT privacyToggleCommand = widget.privacyMode
         ? kContextWidgetPrivacyModeOff
         : kContextWidgetPrivacyModeOn;
+    const UINT lockToggleCommand = widget.locked
+        ? kContextWidgetLockOff
+        : kContextWidgetLockOn;
     const bool showLargeFolderTitlelessOption =
         widget.type == DesktopWidgetType::Collection &&
         snowdesktop::collection_titleless_rules::
@@ -718,6 +721,12 @@ void DesktopApp::ShowWidgetContextMenu(
             widget.keepWhenDesktopHidden);
         AppendMenuW(menu, MF_STRING, hoverToggleCommand, hoverLabel.c_str());
         AppendMenuW(menu, MF_STRING, keepToggleCommand, keepLabel.c_str());
+        {
+            const std::wstring lockLabel = toggleLabel(
+                _LW("app.interact.lock_widget"), widget.locked);
+            AppendMenuW(menu, MF_STRING,
+                lockToggleCommand, lockLabel.c_str());
+        }
         if (widget.type == DesktopWidgetType::Collection ||
             widget.type == DesktopWidgetType::FileCategories ||
             widget.type == DesktopWidgetType::FolderMapping ||
@@ -775,6 +784,8 @@ void DesktopApp::ShowWidgetContextMenu(
     SetMenuItemQuickAction(menu, kContextWidgetDelete);
     setFluentIcon(menu, hoverToggleCommand, L"\uE5F2");
     setFluentIcon(menu, keepToggleCommand, L"\uF359");
+    setFluentIcon(menu, lockToggleCommand,
+        widget.locked ? L"\uE72E" : L"\uE2B4");
     if (widget.type == DesktopWidgetType::Collection ||
         widget.type == DesktopWidgetType::FileCategories ||
         widget.type == DesktopWidgetType::FolderMapping ||
@@ -1386,6 +1397,16 @@ void DesktopApp::ShowWidgetContextMenu(
         break;
     case kContextWidgetPrivacyModeOff:
         widgets_[widgetIndex].privacyMode = false;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetLockOn:
+        widgets_[widgetIndex].locked = true;
+        SaveLayoutSlots();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        break;
+    case kContextWidgetLockOff:
+        widgets_[widgetIndex].locked = false;
         SaveLayoutSlots();
         InvalidateRect(hwnd_, nullptr, TRUE);
         break;

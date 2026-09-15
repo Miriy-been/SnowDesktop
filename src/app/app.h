@@ -394,6 +394,24 @@ private:
 using UiCompositionAnimationHost =
     snowdesktop::widget_composition_layer_rules::CompositionHost;
 
+/**
+ * @brief 常驻圆点分页指示器的布局信息（末屏定位 + 几何，绘制/命中测试共用）。
+ */
+struct PageDotsLayoutInfo
+{
+    bool valid = false;
+    int totalPages = 0;
+    RECT capsule{};             ///< 胶囊背景矩形（client 坐标）
+    float capsuleLeft = 0.0f;
+    float capsuleTop = 0.0f;
+    float capsuleHeight = 0.0f;
+    float firstDotCenterX = 0.0f; ///< 第 0 个圆点圆心 X（client 坐标）
+    float dotsCenterY = 0.0f;
+    float uniformSpacing = 0.0f;  ///< 圆点中心间距
+    float activeRadius = 0.0f;
+    float inactiveRadius = 0.0f;
+};
+
 struct UiCompositionAnimationOverlay
 {
     ComPtr<IDCompositionVisual2> visual;
@@ -892,6 +910,14 @@ private:
         bool hiddenMode = false);
     /** @brief 绘制全高翻页热边的悬停提示。 */
     void DrawPageNavHotEdgeHint(ID2D1DeviceContext* ctx);
+    /** @brief 计算常驻圆点分页指示器的布局信息（末屏定位 + 几何）。 @return 布局信息 */
+    PageDotsLayoutInfo ComputePageDotsLayout() const;
+    /** @brief 命中测试常驻圆点分页指示器。 @param clientPt client 坐标 @return 命中页索引（0-based），未命中返回 -1 */
+    int HitTestPageDotsIndicator(POINT clientPt) const;
+    /** @brief 绘制常驻圆点分页指示器（移动端风格，支持自定义外观与位置）。 @param ctx D2D 设备上下文 */
+    void DrawPageDotsIndicator(ID2D1DeviceContext* ctx);
+    /** @brief 仅重绘圆点指示器区域（含悬停页面名气泡），避免整屏刷新。 */
+    void InvalidatePageDotsIndicator();
     /** @brief 绘制换页通知覆盖层（左上角角标，类似电视台换台）。 @param ctx D2D 设备上下文 */
     void DrawPageNotify(
         ID2D1DeviceContext* ctx,
@@ -913,7 +939,8 @@ private:
         const PersonalizationSettings* effectSettings = nullptr,
         bool registerBackdrop = true,
         std::uintptr_t backdropOwnerKey = 0,
-        float effectScale = 1.0f);
+        float effectScale = 1.0f,
+        bool suppressBorder = false);
     /** @brief 将独立边缘高光叠加到组件内容之上。 @return 成功绘制返回 true */
     bool DrawWidgetPanelEdgeHighlight(ID2D1DeviceContext* ctx, RECT frame,
         float radius, D2D1_COLOR_F fill,
@@ -1344,6 +1371,13 @@ private:
     size_t DockFolderEntryCount() const;
     bool IsGroupedCollection(const DesktopWidget& widget) const;
     bool IsGroupedWidget(const DesktopWidget& widget) const;
+    /** @brief 组件是否处于自由摆放（单个 freePosition 或全局开关）。 */
+    bool IsWidgetFreePositioned(const DesktopWidget& widget) const;
+    /** @brief 组件是否占用桌面网格格位。被分组收纳的不占；自由摆放的组件
+     *         视觉已移走，不再占用其原型网格格位，便于图标落到那里。 */
+    bool WidgetOccupiesGridSlots(const DesktopWidget& widget) const;
+    /** @brief 清除所有组件的自由摆放标记并吸附回网格（关闭全局自由摆放时调用）。 */
+    void ClearAllWidgetsFreePosition();
     size_t FindCollectionGroupIndexForChild(const std::wstring& childId) const;
     size_t FindFileGroupIndexForChild(const std::wstring& childId) const;
     bool IsRecycleBinDockEntry(const DockEntry& entry) const;
@@ -2199,9 +2233,35 @@ private:
     /**
      * @brief 构建选中项的移动计划。
      * @param targetCell 目标单元格
+     * @param allowOverlap 允许落点与被占用格重叠（插入模式，重叠由
+     *                     ResolveDesktopInsertionCollisions 顺延解决）
      * @return 待处理的移动列表
      */
-    std::vector<PendingGridMove> BuildSelectedMove(GridCell targetCell) const;
+    std::vector<PendingGridMove> BuildSelectedMove(
+        GridCell targetCell, bool allowOverlap = false) const;
+    /**
+     * @brief 就近原则兜底①：精确落点整组放不下时，在目标页内按曼哈顿距离
+     *        从近到远搜索第一个可整体放置的单元。
+     * @param targetCell 目标单元格
+     * @return 搜索到的移动计划；页内无可放位置时返回空列表。
+     */
+    std::vector<PendingGridMove> BuildNearestSelectedMove(GridCell targetCell) const;
+    /**
+     * @brief 就近原则兜底②：整组放置失败时，把每个被拖图标逐项就近放到
+     *        最近空闲单元（优先落在拖放目标页），避免整个拖拽“跳回原处”。
+     * @param sourceList 被拖源列表
+     * @param targetCell 目标单元格
+     * @return 逐项移动计划（可能只覆盖能被放置的部分项）。
+     */
+    std::vector<PendingGridMove> BuildFallbackPerItemMove(
+        const DragSourceList& sourceList, GridCell targetCell) const;
+    /**
+     * @brief 桌面插入顺延：被拖图标已精确落到目标格（可能与被占格重叠）后，
+     *        把同页被挤到/冲突的未选中图标沿读取顺序向后顺延到最近的空位，
+     *        实现“把一个图标插到另一个图标下面”的原生手感。
+     * @param sourceList 被拖源（用于识别被拖图标，避免自己挤自己）。
+     */
+    void ResolveDesktopInsertionCollisions(const DragSourceList& sourceList);
     /**
      * @brief 构建桌面区域的放置预览列表。
      * @param sourceList 拖拽源列表
@@ -2613,6 +2673,11 @@ private:
         const std::wstring& widgetId,
         bool visible,
         const RECT& bounds);
+    /** @brief 拖拽跟随：在 flush 基准位置上叠加组件合成视觉的拖拽位移。 */
+    void ApplyDesktopWidgetCompositionDragOffset(
+        const std::wstring& widgetId,
+        int offsetX,
+        int offsetY);
     void KeepDesktopWidgetBackdropPanels();
     void RemoveDesktopWidgetComposition(
         const std::wstring& widgetId,
@@ -3709,6 +3774,7 @@ private:
     // the real cursor. Treating the zero-initialized point as input makes the
     // first frame spuriously hover whatever happens to occupy (0, 0).
     POINT lastMousePoint_{ LONG_MIN, LONG_MIN };
+    int dotsHoveredIndex_ = -1;  ///< 圆点指示器当前悬停页索引（-1 表示未悬停），用于触发 hover 重绘
     SelectionController selectionController_;
     // 组件统一调度令牌：token -> widgetId（manifest 刷新与命名定时器共用）
     std::unordered_map<UINT_PTR, std::wstring> widgetTimerIds_;
@@ -3762,6 +3828,8 @@ private:
     bool resizingWidget_ = false;
     enum class WidgetAction { None, PendingMove, PendingResize, Move, Resize };
     WidgetAction widgetAction_ = WidgetAction::None;
+    /// Lua 组件内容区按下进入 PendingMove：松开未拖动时需把点击转发给 Lua
+    bool widgetContentDragArm_ = false;
     bool middleButtonWidgetMove_ = false;
     bool detailColumnResizeActive_ = false;
     bool detailColumnResizePopup_ = false;
@@ -3780,6 +3848,7 @@ private:
     GridSpan widgetDragOriginalSpan_{};
     GridCell widgetPreviewCell_{};
     GridSpan widgetPreviewSpan_{};
+    POINT widgetPreviewOffset_{}; ///< 自由摆放拖拽时的像素偏移预览
     snowdesktop::widget_composition_layer_rules::WidgetDragFeedbackState
         presentedWidgetDragFeedback_{};
     bool widgetPreviewOccupied_ = false;

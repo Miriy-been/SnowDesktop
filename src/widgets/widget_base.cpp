@@ -429,12 +429,17 @@ bool WidgetContainer::HitResizeHandle(POINT pt) const
 WidgetHit WidgetContainer::HitTestWidget(POINT pt) const
 {
     RECT frame = GetFrameRect();
-    if (!PtInRect(&frame, pt)) return WidgetHit::None;
+    // 拖拽命中区向下扩展两倍栏高，方便抓取（对齐旧版手感）。
+    const int handleHeight = Cu(GetBarHeight());
+    RECT dragFrame = frame;
+    dragFrame.bottom += handleHeight * 2;
+    if (!PtInRect(&dragFrame, pt)) return WidgetHit::None;
 
     if (HitResizeHandle(pt)) return WidgetHit::ResizeHandle;
 
     RECT move = GetMoveHandleRect();
-    if (PtInRect(&move, pt)) return WidgetHit::MoveHandle;
+    if (pt.y >= frame.bottom || PtInRect(&move, pt))
+        return WidgetHit::MoveHandle;
 
     return WidgetHit::Content;
 }
@@ -2444,6 +2449,12 @@ void WidgetContainer::DrawChrome(ID2D1DeviceContext* context, POINT mousePt)
         kMinimumWidgetBorderWidth, kMaximumWidgetBorderWidth);
     float strokeW = selected
         ? std::max(1.6f, configuredStroke) : configuredStroke;
+    // 全局隐藏组件边框：边框颜色置全透明、线宽归零。
+    if (app_->generalSettings_.widgetHideBorder)
+    {
+        borderColor.a = 0.0f;
+        strokeW = 0.0f;
+    }
 
     auto getBrush = [&](const D2D1_COLOR_F& c) -> ID2D1SolidColorBrush* {
         const auto key = D2DColorBrushKey(c);
@@ -2461,7 +2472,8 @@ void WidgetContainer::DrawChrome(ID2D1DeviceContext* context, POINT mousePt)
     PersonalizationSettings backgroundAppearance = borderAppearance;
     backgroundAppearance.widgetEdgeHighlightEnabled = false;
     app_->DrawWidgetPanelBackground(context, frame, radius, fillColor, borderColor,
-        selected, strokeW, &backgroundAppearance, ShouldRegisterBackdrop());
+        selected, strokeW, &backgroundAppearance, ShouldRegisterBackdrop(),
+        0, 1.0f, app_->generalSettings_.widgetHideBorder);
 
     // ── 2. Content (clipped to rounded frame via cached geometry) ──
     {

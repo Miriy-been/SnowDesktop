@@ -1,5 +1,8 @@
 #include "app.h"
 #include "../page_navigation_rules.h"
+#include "../page_dots_geometry.h"
+
+namespace pageDots = snowdesktop::page_dots;
 
 // Desktop page-navigation layout and rendering.
 
@@ -265,4 +268,349 @@ void DesktopApp::DrawPageNavHotEdgeHint(
         message.c_str(), static_cast<UINT32>(message.size()),
         format.Get(), textRect, textBrush.Get(),
         D2D1_DRAW_TEXT_OPTIONS_CLIP);
+}
+
+/**
+ * @brief 计算常驻圆点分页指示器的布局信息（末屏定位 + 几何）。
+ *
+ * 与 GetPageNavigationGridPage 使用一致的末屏解析策略，绘制与命中测试共用，
+ * 避免两处几何漂移。位置/大小/间距支持 GeneralSettings 自定义。
+ *
+ * @return 布局信息；总页数不足 2 或桌面隐藏时 valid=false。
+ */
+PageDotsLayoutInfo DesktopApp::ComputePageDotsLayout() const
+{
+    PageDotsLayoutInfo info;
+    if (desktopIconsHidden_) return info;
+    if (gridPages_.empty()) return info;
+
+    const int totalPages = MaxPageOffset() + 1;
+    if (totalPages <= 1) return info;
+
+    // 末屏定位策略与 GetPageNavigationGridPage 一致
+    const GridPage* targetPage = GetPageNavigationGridPage();
+    if (!targetPage) return info;
+
+    const RECT workArea = targetPage->workArea;
+    if (IsRectEmptyRect(workArea)) return info;
+
+    // 间距/大小可自定义（读取通用设置，未加载时用默认值）
+    const float activeRadius = generalSettings_.pageDotsActiveRadius;
+    const float inactiveRadius = std::max(2.0f, activeRadius * 0.6f);
+    const float dotGap = generalSettings_.pageDotsGap;
+    const pageDots::PageDotsGeometry geom =
+        pageDots::ComputePageDotsGeometry(
+            totalPages, activeRadius, inactiveRadius, dotGap);
+
+    // 位置可自定义：水平（左/中/右）+ 垂直（底部/顶部）+ 边距
+    const float margin = generalSettings_.pageDotsMargin;
+    const float workL = static_cast<float>(workArea.left);
+    const float workR = static_cast<float>(workArea.right);
+    const float workT = static_cast<float>(workArea.top);
+    const float workB = static_cast<float>(workArea.bottom);
+    float capsuleCenterX = 0.0f;
+    switch (generalSettings_.pageDotsHorizontal)
+    {
+    case 1: // 左侧
+        capsuleCenterX = workL + margin + geom.capsuleWidth * 0.5f;
+        break;
+    case 2: // 右侧
+        capsuleCenterX = workR - margin - geom.capsuleWidth * 0.5f;
+        break;
+    default: // 居中
+        capsuleCenterX = (workL + workR) * 0.5f;
+        break;
+    }
+    float capsuleTop = 0.0f;
+    if (generalSettings_.pageDotsVertical == 1)
+        capsuleTop = workT + margin; // 顶部
+    else
+        capsuleTop = workB - margin - geom.capsuleHeight; // 底部
+
+    float capsuleLeft = capsuleCenterX - geom.capsuleWidth * 0.5f;
+    // 防止边距设置导致胶囊越出工作区
+    capsuleLeft = std::clamp(
+        capsuleLeft, workL + 4.0f,
+        std::max(workL + 4.0f, workR - geom.capsuleWidth - 4.0f));
+    capsuleTop = std::clamp(
+        capsuleTop, workT + 4.0f,
+        std::max(workT + 4.0f, workB - geom.capsuleHeight - 4.0f));
+
+    info.valid = true;
+    info.totalPages = totalPages;
+    info.capsuleLeft = capsuleLeft;
+    info.capsuleTop = capsuleTop;
+    info.capsuleHeight = geom.capsuleHeight;
+    info.firstDotCenterX = capsuleLeft + geom.firstDotCenterX;
+    info.dotsCenterY = capsuleTop + geom.capsuleHeight * 0.5f;
+    info.uniformSpacing = geom.uniformSpacing;
+    info.activeRadius = geom.activeRadius;
+    info.inactiveRadius = geom.inactiveRadius;
+    info.capsule = MakeRect(
+        static_cast<LONG>(std::floor(capsuleLeft)),
+        static_cast<LONG>(std::floor(capsuleTop)),
+        static_cast<LONG>(std::ceil(capsuleLeft + geom.capsuleWidth)),
+        static_cast<LONG>(std::ceil(capsuleTop + geom.capsuleHeight)));
+    return info;
+}
+
+/**
+ * @brief 仅重绘圆点指示器区域（含悬停页面名气泡），避免整屏刷新。
+ */
+void DesktopApp::InvalidatePageDotsIndicator()
+{
+    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    if (!info.valid) return;
+    RECT dirty = info.capsule;
+    if (generalSettings_.pageDotsShowName)
+    {
+        // 气泡可能出现在胶囊上方或下方，预留一个气泡高度的扩展区。
+        const LONG band = static_cast<LONG>(info.capsuleHeight) + 64;
+        if (generalSettings_.pageDotsVertical == 1)
+            dirty.bottom += band;
+        else
+            dirty.top -= band;
+    }
+    InflateRect(&dirty, 8, 8);
+    if (hwnd_ && IsWindow(hwnd_))
+    {
+        InvalidateRect(hwnd_, &dirty, FALSE);
+        PresentDesktopPointerUpdate();
+    }
+}
+
+/**
+ * @brief 命中测试常驻圆点分页指示器。
+ * @param clientPt client 坐标
+ * @return 命中页索引（0-based），未命中返回 -1
+ */
+int DesktopApp::HitTestPageDotsIndicator(POINT clientPt) const
+{
+    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    if (!info.valid) return -1;
+
+    // 命中容差：比最大圆点半径再放大 4px，方便点按
+    const float hitRadius = std::max(
+        info.activeRadius, info.inactiveRadius) + 4.0f;
+    for (int i = 0; i < info.totalPages; ++i)
+    {
+        const float centerX = info.firstDotCenterX
+            + info.uniformSpacing * static_cast<float>(i);
+        const float dx = static_cast<float>(clientPt.x) - centerX;
+        const float dy = static_cast<float>(clientPt.y) - info.dotsCenterY;
+        if (dx * dx + dy * dy <= hitRadius * hitRadius)
+            return i;
+    }
+    return -1;
+}
+
+/**
+ * @brief 绘制常驻圆点分页指示器（移动端风格，末屏定位）。
+ *
+ * 几何与配色：
+ * - 仅在桌面可见且总页数 >= 2 时绘制
+ * - 位置/大小/间距/颜色由 GeneralSettings 自定义
+ * - 鼠标悬停的圆点放大 + 提亮，提示可点击跳转；可选显示页面名气泡
+ *
+ * @param ctx D2D 设备上下文
+ */
+void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
+{
+    if (!ctx) return;
+    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    if (!info.valid) return;
+
+    const int currentPage = pageOffset_;
+    const int hoveredDot = HitTestPageDotsIndicator(lastMousePoint_);
+
+    // 主题色（背景胶囊沿用全局外观）
+    const PersonalizationSettings& p = CurrentPersonalization();
+    const bool darkTheme = p.contentTheme == 0;
+
+    // 圆点颜色：0=跟随主题 1=白色 2=黑色 3=蓝色 4=自定义
+    float dotR = 0.0f, dotG = 0.0f, dotB = 0.0f;
+    switch (generalSettings_.pageDotsColorMode)
+    {
+    case 1:
+        dotR = 1.0f; dotG = 1.0f; dotB = 1.0f;
+        break;
+    case 2:
+        dotR = 0.10f; dotG = 0.12f; dotB = 0.16f;
+        break;
+    case 3:
+        dotR = 0.39f; dotG = 0.66f; dotB = 1.0f;
+        break;
+    case 4:
+        dotR = static_cast<float>(generalSettings_.pageDotsColorR) / 255.0f;
+        dotG = static_cast<float>(generalSettings_.pageDotsColorG) / 255.0f;
+        dotB = static_cast<float>(generalSettings_.pageDotsColorB) / 255.0f;
+        break;
+    default:
+        dotR = darkTheme ? 1.0f : 0.10f;
+        dotG = darkTheme ? 1.0f : 0.12f;
+        dotB = darkTheme ? 1.0f : 0.16f;
+        break;
+    }
+
+    // 背景胶囊（hover 时略提亮，提示可交互）
+    // 胶囊使用专门的配色而不跟随全局组件透明度，保证在任何壁纸上可辨识。
+    const bool capsuleHovered = hoveredDot >= 0;
+    float capsuleBgR = 0.0f, capsuleBgG = 0.0f, capsuleBgB = 0.0f;
+    float capsuleBgAlpha = 0.0f;
+    float capsuleBorderR = 0.0f, capsuleBorderG = 0.0f, capsuleBorderB = 0.0f;
+    float capsuleBorderAlpha = 0.0f;
+    if (darkTheme)
+    {
+        capsuleBgR = 0.05f; capsuleBgG = 0.06f; capsuleBgB = 0.08f;
+        capsuleBgAlpha = 0.55f;
+        capsuleBorderR = 1.0f; capsuleBorderG = 1.0f; capsuleBorderB = 1.0f;
+        capsuleBorderAlpha = 0.35f;
+    }
+    else
+    {
+        capsuleBgR = 0.97f; capsuleBgG = 0.98f; capsuleBgB = 1.0f;
+        capsuleBgAlpha = 0.60f;
+        capsuleBorderR = 0.0f; capsuleBorderG = 0.0f; capsuleBorderB = 0.0f;
+        capsuleBorderAlpha = 0.30f;
+    }
+    // hover 视觉强化：填充略提亮、边框更清晰，提示可交互。
+    if (capsuleHovered)
+    {
+        capsuleBgAlpha = std::min(1.0f, capsuleBgAlpha * 1.25f);
+        capsuleBorderAlpha = std::min(1.0f, capsuleBorderAlpha * 1.7f);
+    }
+    {
+        ComPtr<ID2D1SolidColorBrush> bg;
+        ctx->CreateSolidColorBrush(
+            D2D1::ColorF(capsuleBgR, capsuleBgG, capsuleBgB,
+                capsuleBgAlpha),
+            &bg);
+        if (bg) ctx->FillRoundedRectangle(
+            D2D1::RoundedRect(
+                D2D1::RectF(
+                    static_cast<float>(info.capsule.left),
+                    static_cast<float>(info.capsule.top),
+                    static_cast<float>(info.capsule.right),
+                    static_cast<float>(info.capsule.bottom)),
+                info.capsuleHeight * 0.5f, info.capsuleHeight * 0.5f),
+            bg.Get());
+
+        ComPtr<ID2D1SolidColorBrush> border;
+        ctx->CreateSolidColorBrush(
+            D2D1::ColorF(capsuleBorderR, capsuleBorderG, capsuleBorderB,
+                capsuleBorderAlpha),
+            &border);
+        if (border) ctx->DrawRoundedRectangle(
+            D2D1::RoundedRect(
+                D2D1::RectF(
+                    static_cast<float>(info.capsule.left),
+                    static_cast<float>(info.capsule.top),
+                    static_cast<float>(info.capsule.right),
+                    static_cast<float>(info.capsule.bottom)),
+                info.capsuleHeight * 0.5f, info.capsuleHeight * 0.5f),
+            border.Get(), 1.0f);
+    }
+
+    for (int i = 0; i < info.totalPages; ++i)
+    {
+        const bool isActive = (i == currentPage);
+        const bool isHovered = (i == hoveredDot);
+        float radius = isActive ? info.activeRadius : info.inactiveRadius;
+        if (isHovered) radius = info.activeRadius + 1.5f;
+        const float alpha = isActive ? 1.0f
+            : (isHovered ? 0.90f : 0.50f);
+        const float centerX = info.firstDotCenterX
+            + info.uniformSpacing * static_cast<float>(i);
+
+        ComPtr<ID2D1SolidColorBrush> dotBrush;
+        ctx->CreateSolidColorBrush(
+            D2D1::ColorF(dotR, dotG, dotB, alpha), &dotBrush);
+        if (!dotBrush) continue;
+
+        ctx->FillEllipse(
+            D2D1::Ellipse(
+                D2D1::Point2F(centerX, info.dotsCenterY),
+                radius, radius),
+            dotBrush.Get());
+
+        // 当前页强调：在 active 圆点外加一圈浅色光环，强化当前页可辨识度
+        if (isActive)
+        {
+            ComPtr<ID2D1SolidColorBrush> haloBrush;
+            ctx->CreateSolidColorBrush(
+                D2D1::ColorF(dotR, dotG, dotB, 0.35f), &haloBrush);
+            if (haloBrush)
+            {
+                ctx->DrawEllipse(
+                    D2D1::Ellipse(
+                        D2D1::Point2F(centerX, info.dotsCenterY),
+                        radius + 2.5f, radius + 2.5f),
+                    haloBrush.Get(), 1.5f);
+            }
+        }
+    }
+
+    // hover 提示：显示悬停圆点对应页面的名字
+    if (hoveredDot >= 0 && generalSettings_.pageDotsShowName)
+    {
+        const std::wstring name = GetPageDisplayName(hoveredDot);
+        auto* dwrite = GetDWriteFactory();
+        if (dwrite && !name.empty())
+        {
+            ComPtr<IDWriteTextFormat> fmt;
+            if (SUCCEEDED(dwrite->CreateTextFormat(L"Segoe UI", nullptr,
+                    DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                    DWRITE_FONT_STRETCH_NORMAL, 13.0f, L"", &fmt)) &&
+                fmt)
+            {
+                fmt->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                fmt->SetParagraphAlignment(
+                    DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                fmt->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+
+                float textW = 0.0f;
+                float textH = 0.0f;
+                ComPtr<IDWriteTextLayout> measure;
+                if (SUCCEEDED(dwrite->CreateTextLayout(name.c_str(),
+                        static_cast<UINT32>(name.size()), fmt.Get(),
+                        800.0f, 60.0f, &measure)) &&
+                    measure)
+                {
+                    DWRITE_TEXT_METRICS metrics{};
+                    if (SUCCEEDED(measure->GetMetrics(&metrics)))
+                    {
+                        textW = metrics.width;
+                        textH = metrics.height;
+                    }
+                }
+
+                constexpr float kPadX = 10.0f;
+                constexpr float kPadY = 5.0f;
+                const float tooltipW = textW + kPadX * 2.0f;
+                const float tooltipH = textH + kPadY * 2.0f;
+                const float hoverCenterX = info.firstDotCenterX
+                    + info.uniformSpacing
+                        * static_cast<float>(hoveredDot);
+                const float tooltipLeft = hoverCenterX - tooltipW * 0.5f;
+                // 圆点在顶部时气泡放到下方，否则放到上方，避免顶部气泡超出屏幕。
+                const float tooltipTop =
+                    (generalSettings_.pageDotsVertical == 1)
+                        ? info.capsuleTop + info.capsuleHeight + 8.0f
+                        : info.capsuleTop - tooltipH - 8.0f;
+                const RECT tooltipRect = MakeRect(
+                    static_cast<LONG>(std::floor(tooltipLeft)),
+                    static_cast<LONG>(std::floor(tooltipTop)),
+                    static_cast<LONG>(std::ceil(tooltipLeft + tooltipW)),
+                    static_cast<LONG>(std::ceil(tooltipTop + tooltipH)));
+
+                DrawD2DRoundedRectangle(
+                    ctx, tooltipRect, 6.0f,
+                    D2D1::ColorF(0.05f, 0.05f, 0.08f, 0.90f),
+                    D2D1::ColorF(0.4f, 0.6f, 1.0f, 0.40f),
+                    1.0f);
+                DrawD2DText(ctx, name, tooltipRect, fmt.Get(),
+                    D2D1::ColorF(0.95f, 0.96f, 1.0f, 0.95f));
+            }
+        }
+    }
 }

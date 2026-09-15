@@ -141,10 +141,17 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
 
     if (hovered && !selected)
     {
+        // 悬停框与选中框使用同一几何（图标∪标签再外扩少量 padding），
+        // 圆角对齐原生 Win11 桌面的 4px；不再占满整个网格单元格。
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
-        app_->DrawD2DRoundedRectangle(context, highlightRect,
+            : 4.0f * app_->GetItemLayoutScale(rect);
+        RECT hoverRect = iconOnlyHighlight
+            ? highlightRect
+            : (quickNavLayout
+                ? rect
+                : app_->GetItemSelectionRect(rect, false));
+        app_->DrawD2DRoundedRectangle(context, hoverRect,
             radius,
             lightTheme ? D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.06f * alpha)
                        : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.08f * alpha),
@@ -161,20 +168,21 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
 
     if (selected && !dragged)
     {
+        // 选中框与悬停框同几何：包裹图标 + 两行标签，宽高比接近原生（宽>高）。
         RECT sel = iconOnlyHighlight
             ? highlightRect
             : (quickNavLayout
                 ? rect
-                : app_->GetItemSelectionRect(rect, true));
+                : app_->GetItemSelectionRect(rect, false));
         const float radius = quickNavLayout
             ? static_cast<float>(app_->QuickNavScale(6))
-            : 6.0f * app_->GetItemLayoutScale(rect);
+            : 4.0f * app_->GetItemLayoutScale(rect);
         app_->DrawD2DRoundedRectangle(context, sel,
             radius,
             lightTheme ? D2D1::ColorF(0.20f, 0.40f, 0.70f, 0.18f * alpha)
-                       : D2D1::ColorF(0.55f, 0.55f, 0.55f, 0.34f * alpha),
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.20f * alpha),
             lightTheme ? D2D1::ColorF(0.25f, 0.50f, 0.80f, 0.40f * alpha)
-                       : D2D1::ColorF(0.78f, 0.78f, 0.78f, 0.55f * alpha));
+                       : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.55f * alpha));
     }
 
     if (useDemoIdentity)
@@ -209,8 +217,9 @@ void DesktopIcon::Draw(ID2D1RenderTarget* context, RECT rect, int state, bool li
         item_->iconState != IconState::Loading)
         app_->DrawShortcutArrowOverlay(context, iconRect, alpha);
 
-    if (!dragged && drawText)
-        DrawTitle(context, rect, selected, alpha, lightTheme, demoCollection);
+    if (drawText)
+        // 统一紧凑两行绘制（选中时不再三行展开撑高，使选中框能完整包裹文字）
+        DrawTitle(context, rect, false, alpha, lightTheme, demoCollection);
 }
 
 void DesktopIcon::DrawTitle(ID2D1RenderTarget* context, RECT rect,

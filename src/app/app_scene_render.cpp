@@ -163,12 +163,10 @@ void DesktopApp::DrawStaticBackground(
         const bool isPreviewSource =
             mouseDownWidgetIndex_ < widgets_.size() &&
             &widgetData == &widgets_[mouseDownWidgetIndex_];
-        const bool previewSourceHidden =
-            snowdesktop::widget_visibility_rules::
-                ShouldHideWidgetPreviewSource(
-                    widgetAction_ == WidgetAction::Move,
-                    widgetAction_ == WidgetAction::Resize,
-                    isPreviewSource);
+        // 拖拽/缩放跟随（v1.0.3 风格）：组件本体保持可见，由
+        // ApplyDesktopWidgetCompositionDragOffset 平移合成视觉跟随拖拽，
+        // 不再隐藏本体、不再绘制占位框。
+        const bool previewSourceHidden = false;
         const bool presentWidgetSurface =
             snowdesktop::widget_composition_layer_rules::
                 ShouldPresentWidgetSurface(
@@ -328,38 +326,8 @@ void DesktopApp::DrawDynamicOverlays(
                 widgetDockTargetContainer_->DrawInsertionPreview(
                     ctx, widgetDockInsertIndex_);
         }
-        else
-        {
-        GridCell cell = widgetPreviewCell_;
-        GridSpan span = widgetPreviewSpan_;
-        RECT previewBounds = GetGridRect(gridPages_, cell, span);
-
-        bool widgetConflict = false;
-        for (size_t i = 0; i < widgets_.size(); ++i)
-        {
-            if (i == mouseDownWidgetIndex_) continue;
-            const auto& ow = widgets_[i];
-            if (!snowdesktop::collection_group_rules::
-                    ShouldOccupyDesktopGrid(
-                        IsGroupedWidget(ow)))
-                continue;
-            if (ow.gridCell.pageId != cell.pageId) continue;
-            if (cell.column + span.columns <= ow.gridCell.column) continue;
-            if (ow.gridCell.column + ow.gridSpan.columns <= cell.column) continue;
-            if (cell.row + span.rows <= ow.gridCell.row) continue;
-            if (ow.gridCell.row + ow.gridSpan.rows <= cell.row) continue;
-            widgetConflict = true; break;
-        }
-
-        bool ok = !widgetConflict && !cell.pageId.empty();
-        float radius = 8.0f;
-        D2D1::ColorF fill = ok ? D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.15f)
-                              : D2D1::ColorF(1.0f, 0.30f, 0.30f, 0.18f);
-        D2D1::ColorF border = ok ? D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.75f)
-                                 : D2D1::ColorF(1.0f, 0.25f, 0.25f, 0.85f);
-
-        DrawD2DRoundedRectangle(ctx, previewBounds, radius, fill, border, 2.0f);
-        }
+        // 拖拽/缩放跟随：组件本体已渲染在预览位置（bounds 跟随），
+        // 不再绘制落点占位框（v1.0.3 风格）。
     }
 
     // Drop previews are split around the popup draw. Desktop/widget targets
@@ -643,6 +611,7 @@ void DesktopApp::DrawDynamicOverlays(
         !renderingFloatingPopup_)
     {
         DrawPageNavHotEdgeHint(ctx);
+        DrawPageDotsIndicator(ctx);
         DrawPageNotify(ctx);
     }
 }

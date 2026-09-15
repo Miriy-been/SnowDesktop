@@ -20,6 +20,7 @@ struct DesktopPageActions
     using CategoryEdit = std::function<void(CategorySettings&)>;
     using PersonalizationEdit =
         std::function<void(PersonalizationSettings&)>;
+    using GeneralEdit = std::function<void(GeneralSettings&)>;
 
     /**
      * Each edit is applied by the host to the controller's latest domain
@@ -38,6 +39,10 @@ struct DesktopPageActions
         std::uint64_t generation,
         SettingsUpdateMode mode,
         PersonalizationEdit edit)> updatePersonalization;
+    std::function<void(
+        std::uint64_t generation,
+        SettingsUpdateMode mode,
+        GeneralEdit edit)> updateGeneral;
 
     /** Persist the Category draft after the explicit Apply action. */
     std::function<void(std::uint64_t generation)> commitCategory;

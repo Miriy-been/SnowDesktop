@@ -2,6 +2,8 @@
 #include "../desktop_drop_search.h"
 #include "../widgets/collection_group_rules.h"
 
+#include <map>
+
 // Grid geometry, drag-group planning and cross-monitor migration.
 
 void DesktopApp::UpdateLayoutWorkArea(bool preserveActiveDimensions)
@@ -270,9 +272,7 @@ bool DesktopApp::IsGridAreaOccupiedByUnselected(const GridCell& cell, GridSpan s
     }
     for (const auto& w : widgets_)
     {
-        if (!snowdesktop::collection_group_rules::
-                ShouldOccupyDesktopGrid(
-                    IsGroupedWidget(w)))
+        if (!WidgetOccupiesGridSlots(w))
             continue;
         if (w.gridCell.pageId != cell.pageId) continue;
         const int right1 = cell.column + std::max(1, span.columns);
@@ -291,7 +291,8 @@ bool DesktopApp::IsGridAreaOccupiedByUnselected(const GridCell& cell, GridSpan s
  * @param targetCell 目标单元格。
  * @return 移动计划列表，无法移动时返回空列表。
  */
-std::vector<DesktopApp::PendingGridMove> DesktopApp::BuildSelectedMove(GridCell targetCell) const
+std::vector<DesktopApp::PendingGridMove> DesktopApp::BuildSelectedMove(
+    GridCell targetCell, bool allowOverlap) const
 {
     std::vector<PendingGridMove> moves;
     std::vector<size_t> selectedIndexes;
@@ -359,7 +360,8 @@ std::vector<DesktopApp::PendingGridMove> DesktopApp::BuildSelectedMove(GridCell 
         if (!IsGridAreaValid(movedCell, items_[itemIndex].gridSpan) ||
             movedCell.column + items_[itemIndex].gridSpan.columns > page->columns ||
             movedCell.row + items_[itemIndex].gridSpan.rows > page->rows ||
-            IsGridAreaOccupiedByUnselected(movedCell, items_[itemIndex].gridSpan))
+            (!allowOverlap &&
+                IsGridAreaOccupiedByUnselected(movedCell, items_[itemIndex].gridSpan)))
         {
             moves.clear();
             return moves;
@@ -402,6 +404,157 @@ GridCell DesktopApp::FindBestDropCell(const DragSourceList& sourceList, GridCell
         bestDropCellCache_, dragSession_.IsActive(), cacheKey,
         exactPlacement, page ? page->columns : 0, page ? page->rows : 0,
         [this](const GridCell& cell) { return !BuildSelectedMove(cell).empty(); });
+}
+
+/**
+ * @brief 就近原则兜底①：精确落点整组放不下时，在目标页内按曼哈顿距离
+ *        从近到远搜索第一个可整体放置的单元。
+ */
+std::vector<DesktopApp::PendingGridMove> DesktopApp::BuildNearestSelectedMove(
+    GridCell targetCell) const
+{
+    const GridPage* page = FindGridPage(gridPages_, targetCell.pageId);
+    if (!page) return {};
+
+    std::vector<PendingGridMove> best;
+    int bestDistance = INT_MAX;
+    for (int r = 0; r < page->rows; ++r)
+    {
+        for (int c = 0; c < page->columns; ++c)
+        {
+            GridCell probe{ targetCell.pageId, c, r };
+            const int distance =
+                std::abs(r - targetCell.row) +
+                std::abs(c - targetCell.column);
+            if (distance >= bestDistance) continue;
+            std::vector<PendingGridMove> moves =
+                BuildSelectedMove(probe);
+            if (moves.empty()) continue;
+            best = std::move(moves);
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+/**
+ * @brief 就近原则兜底②：整组放置失败时，把每个被拖图标逐项就近放到
+ *        最近空闲单元（优先落在拖放目标页），避免整个拖拽“跳回原处”。
+ * @return 逐项移动计划（可能只覆盖能被放置的部分项）。
+ */
+std::vector<DesktopApp::PendingGridMove> DesktopApp::BuildFallbackPerItemMove(
+    const DragSourceList& sourceList, GridCell targetCell) const
+{
+    std::unordered_set<std::wstring> usedSlots;
+    for (const auto& w : widgets_)
+        if (WidgetOccupiesGridSlots(w))
+            MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
+    for (const auto& item : items_)
+    {
+        if (item.name.empty() || item.gridCell.pageId.empty()) continue;
+        if (IsItemInAnyWidget(item)) continue;
+        if (item.selected) continue;
+        MarkGridArea(usedSlots, item.gridCell, item.gridSpan);
+    }
+
+    std::vector<const DragSourceEntry*> entries;
+    for (const auto& entry : sourceList.entries)
+        if (entry.desktopIndex < items_.size())
+            entries.push_back(&entry);
+    std::sort(entries.begin(), entries.end(),
+        [&](const DragSourceEntry* a, const DragSourceEntry* b) {
+            return items_[a->desktopIndex].slot <
+                items_[b->desktopIndex].slot;
+        });
+
+    const std::wstring preferredPage = !targetCell.pageId.empty()
+        ? targetCell.pageId
+        : (GetFirstPageGridPage() ? GetFirstPageGridPage()->id : L"");
+    std::vector<PendingGridMove> moves;
+    for (const auto* entry : entries)
+    {
+        GridSpan span{
+            std::max(1, entry->originalSpan.columns),
+            std::max(1, entry->originalSpan.rows)
+        };
+        GridCell freeCell;
+        const int startSlot =
+            SlotFromCell(gridPages_, items_[entry->desktopIndex].gridCell);
+        if (!TryFindFreeCell(span, usedSlots, freeCell, preferredPage, startSlot))
+            continue;
+        MarkGridArea(usedSlots, freeCell, span);
+        moves.push_back({ entry->desktopIndex, freeCell });
+    }
+    return moves;
+}
+
+/**
+ * @brief 桌面插入顺延：被拖图标已精确落到目标格（可能与被占格重叠）后，
+ *        把同页被挤到/冲突的未选中图标沿读取顺序向后顺延到最近的空位，
+ *        实现“把一个图标插到另一个图标下面”的原生手感。
+ * @param sourceList 被拖源（用于识别被拖图标，避免自己挤自己）。
+ */
+void DesktopApp::ResolveDesktopInsertionCollisions(
+    const DragSourceList& sourceList)
+{
+    std::unordered_set<std::wstring> usedSlots;
+    for (const auto& w : widgets_)
+        if (WidgetOccupiesGridSlots(w))
+            MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
+
+    std::unordered_set<size_t> draggedIndexes;
+    for (const auto& entry : sourceList.entries)
+    {
+        if (entry.desktopIndex >= items_.size()) continue;
+        draggedIndexes.insert(entry.desktopIndex);
+        const auto& item = items_[entry.desktopIndex];
+        MarkGridArea(usedSlots, item.gridCell, item.gridSpan);
+    }
+
+    std::map<std::wstring, std::vector<size_t>> byPage;
+    for (size_t i = 0; i < items_.size(); ++i)
+    {
+        if (draggedIndexes.count(i)) continue;
+        const auto& item = items_[i];
+        if (item.name.empty() || item.gridCell.pageId.empty()) continue;
+        if (IsItemInAnyWidget(item)) continue;
+        byPage[item.gridCell.pageId].push_back(i);
+    }
+
+    for (auto& [pageId, indexes] : byPage)
+    {
+        std::sort(indexes.begin(), indexes.end(),
+            [&](size_t a, size_t b) {
+                return items_[a].slot < items_[b].slot;
+            });
+        for (const size_t i : indexes)
+        {
+            auto& item = items_[i];
+            GridSpan span{
+                std::max(1, item.gridSpan.columns),
+                std::max(1, item.gridSpan.rows)
+            };
+            if (!AreGridSlotsMarked(
+                    usedSlots, item.gridCell, span))
+            {
+                MarkGridArea(usedSlots, item.gridCell, span);
+                continue;
+            }
+            GridCell freeCell;
+            if (TryFindFreeCell(span, usedSlots, freeCell,
+                    item.gridCell.pageId, item.slot))
+            {
+                item.gridCell = freeCell;
+                item.slot = SlotFromCell(gridPages_, freeCell);
+                MarkGridArea(usedSlots, freeCell, span);
+            }
+            else
+            {
+                // 满屏无空位：保留原处（极少数情形）
+                MarkGridArea(usedSlots, item.gridCell, span);
+            }
+        }
+    }
 }
 
 /**
@@ -471,7 +624,7 @@ void DesktopApp::MigrateSelectedItemsToLastMonitorPage()
             MarkGridArea(usedSlots, item.gridCell, item.gridSpan);
     }
     for (const auto& w : widgets_)
-        if (!IsGroupedWidget(w))
+        if (WidgetOccupiesGridSlots(w))
             MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
 
     for (auto& item : items_)

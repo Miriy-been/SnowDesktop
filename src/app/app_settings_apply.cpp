@@ -749,9 +749,22 @@ public:
             app_.generalSettings_.animationOnBattery = general.animationOnBattery;
             app_.generalSettings_.quickNavigationAppearance = general.quickNavigationAppearance;
             app_.generalSettings_.collectionPopupAppearance = general.collectionPopupAppearance;
+            // 圆点指示器是纯渲染值，拖动滑块时立即预览。
+            app_.generalSettings_.pageDotsGap = general.pageDotsGap;
+            app_.generalSettings_.pageDotsActiveRadius = general.pageDotsActiveRadius;
+            app_.generalSettings_.pageDotsShowName = general.pageDotsShowName;
+            app_.generalSettings_.pageDotsColorMode = general.pageDotsColorMode;
+            app_.generalSettings_.pageDotsColorR = general.pageDotsColorR;
+            app_.generalSettings_.pageDotsColorG = general.pageDotsColorG;
+            app_.generalSettings_.pageDotsColorB = general.pageDotsColorB;
+            app_.generalSettings_.pageDotsVertical = general.pageDotsVertical;
+            app_.generalSettings_.pageDotsHorizontal = general.pageDotsHorizontal;
+            app_.generalSettings_.pageDotsMargin = general.pageDotsMargin;
+            app_.generalSettings_.altWheelTurnPage = general.altWheelTurnPage;
             app_.ApplyQuickNavigationAppearance();
             app_.ApplyCollectionPopupAppearance();
             app_.ApplyAnimationPreferences();
+            app_.InvalidatePageDotsIndicator();
         }
         if (HasSettingsDomain(domains, SettingsDomain::Personalization))
         {
@@ -833,6 +846,18 @@ public:
         {
             app_.navigationSettings_ = snapshot.values.navigation;
             app_.ApplyNavigationHotkey();
+            return snowdesktop::SettingsActionResult::Success(domains);
+        }
+        // Render-only General edits (page dots, Alt+wheel turning) are pure
+        // interaction values. Apply the mirror and refresh only the indicator
+        // region instead of running the full General pipeline (layout
+        // rebuild, hotkey re-registration...).
+        if (domains == SettingsDomain::General &&
+            snowdesktop::settings_update_rules::IsRenderOnlyGeneralCommit(
+                app_.generalSettings_, snapshot.values.general))
+        {
+            app_.generalSettings_ = snapshot.values.general;
+            app_.InvalidatePageDotsIndicator();
             return snowdesktop::SettingsActionResult::Success(domains);
         }
         if (domains == SettingsDomain::General &&
@@ -921,6 +946,11 @@ public:
             const bool languageChanged = std::strcmp(
                 app_.generalSettings_.language,
                 snapshot.values.general.language) != 0;
+            // 全局自由摆放关闭时，清除所有组件的自由摆放标记并吸附回网格，
+            // 否则开关开启期间拖放过/添加过的组件会永久停留在自由位置。
+            const bool widgetFreePositionDisabled =
+                app_.generalSettings_.widgetFreePosition &&
+                    !snapshot.values.general.widgetFreePosition;
             app_.generalSettings_ = snapshot.values.general;
             Locale::Instance().SetLanguage(app_.generalSettings_.language);
             app_.ApplyAnimationPreferences();
@@ -928,6 +958,8 @@ public:
                 app_.generalSettings_.softwareDesktopEnabled, false);
             app_.ApplyDesktopPassthroughHotkey();
             app_.ApplyFloatingDockHotkey();
+            if (widgetFreePositionDisabled)
+                app_.ClearAllWidgetsFreePosition();
             if (dockEnabledChanged)
             {
                 if (app_.settingsController_)

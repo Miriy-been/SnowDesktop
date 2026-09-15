@@ -29,10 +29,13 @@ constexpr bool ShouldSyncPreviewBeforePresentation(
     return !alreadySyncedForInput;
 }
 
+// 多选拖拽不做“卡片堆”压缩：每个被拖图标按自身位置散开跟随鼠标
+// （对齐旧版/Windows 原生的散开虚影，而不是叠成一摞）。
 constexpr bool ShouldCompactPreview(
     std::size_t itemCount) noexcept
 {
-    return itemCount > 1;
+    (void)itemCount;
+    return false;
 }
 
 constexpr bool ShouldSkipPreviewFallbackCandidate(

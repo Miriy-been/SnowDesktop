@@ -467,6 +467,26 @@ bool DesktopApp::HasDesktopWidgetComposition(
     return desktopWidgetCompositionItems_.contains(widgetId);
 }
 
+void DesktopApp::ApplyDesktopWidgetCompositionDragOffset(
+    const std::wstring& widgetId,
+    int offsetX,
+    int offsetY)
+{
+    auto position = desktopWidgetCompositionItems_.find(widgetId);
+    if (position == desktopWidgetCompositionItems_.end()) return;
+    auto& item = position->second;
+    if (!item.visual) return;
+    // 拖拽跟随：在 flush 计算的基准位置上叠加拖拽位移。
+    // 表面内容像素级不变，仅移动视觉（v1.0.3 平移幽灵的等价实现）。
+    if (FAILED(item.visual->SetOffsetX(
+            static_cast<float>(item.bounds.left + offsetX))))
+        return;
+    if (FAILED(item.visual->SetOffsetY(
+            static_cast<float>(item.bounds.top + offsetY))))
+        return;
+    FlushPendingCompositionCommit();
+}
+
 void DesktopApp::SetDesktopWidgetCompositionVisible(
     const std::wstring& widgetId,
     bool visible,

@@ -486,10 +486,14 @@ if(MSVC)
     target_compile_definitions(SnowDesktopWorkshopImgui PRIVATE
         _UNICODE UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 endif()
+set_property(TARGET SnowDesktopWorkshopImgui PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 
 add_library(SnowDesktopLua STATIC ${LUA_SOURCES})
 set_source_files_properties(${LUA_SOURCES} PROPERTIES LANGUAGE C)
 target_include_directories(SnowDesktopLua PUBLIC third_party/lua)
+set_property(TARGET SnowDesktopLua PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 if(MSVC)
     set_property(TARGET SnowDesktopLua PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -501,6 +505,8 @@ add_library(SnowDesktopEverything STATIC ${EVERYTHING_SOURCES})
 set_source_files_properties(${EVERYTHING_SOURCES} PROPERTIES LANGUAGE C)
 target_include_directories(SnowDesktopEverything PUBLIC
     third_party/everything/include)
+set_property(TARGET SnowDesktopEverything PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 if(MSVC)
     set_property(TARGET SnowDesktopEverything PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -511,6 +517,8 @@ add_library(SnowDesktopPinyinData STATIC ${PINYIN_DATA_SOURCES})
 target_compile_features(SnowDesktopPinyinData PRIVATE cxx_std_20)
 target_include_directories(SnowDesktopPinyinData PUBLIC
     third_party/pinyin-data)
+set_property(TARGET SnowDesktopPinyinData PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 if(MSVC)
     set_property(TARGET SnowDesktopPinyinData PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -591,6 +599,8 @@ if (MSVC)
         "${CPPWINRT_OUTPUT_DIR}/winrt/Windows.UI.Xaml.h"
         "${CPPWINRT_OUTPUT_DIR}/winrt/Windows.UI.Xaml.Shapes.h"
         "${CPPWINRT_OUTPUT_DIR}/winrt/WindowsUdk.UI.Shell.h")
+    set_property(TARGET SnowDesktopCppWinRT PROPERTY
+        VS_GLOBAL_ResolveNuGetPackages "false")
 
     add_library(SnowDesktopTaskbarHook SHARED
         src/taskbar_hook/taskbar_hook.cpp
@@ -644,6 +654,10 @@ if (MSVC)
         _CRT_SECURE_NO_WARNINGS WINVER=0x0A00 _WIN32_WINNT=0x0A00)
     target_link_libraries(SnowDesktopSearchVisibility PRIVATE
         ole32 runtimeobject windowsapp)
+    set_property(TARGET SnowDesktopTaskbarHook PROPERTY
+        VS_GLOBAL_ResolveNuGetPackages "false")
+    set_property(TARGET SnowDesktopSearchVisibility PROPERTY
+        VS_GLOBAL_ResolveNuGetPackages "false")
     set_property(TARGET SnowDesktopSearchVisibility PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     target_compile_options(SnowDesktopSearchVisibility PRIVATE
@@ -666,6 +680,8 @@ if (MSVC)
         _CRT_SECURE_NO_WARNINGS WINVER=0x0A00 _WIN32_WINNT=0x0A00)
     target_link_libraries(SnowDesktopWallpaperHook PRIVATE
         d3d9 d3d11 dxgi user32)
+    set_property(TARGET SnowDesktopWallpaperHook PROPERTY
+        VS_GLOBAL_ResolveNuGetPackages "false")
     set_property(TARGET SnowDesktopWallpaperHook PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     target_compile_options(SnowDesktopWallpaperHook PRIVATE
@@ -748,6 +764,11 @@ set_property(TARGET SnowDesktop PROPERTY
     VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION "10.0.19041.0")
 set_target_properties(SnowDesktop PROPERTIES
     VS_GLOBAL_ROOTNAMESPACE "SnowDesktop"
+    # CMake-generated vcxproj lacks a TargetFrameworkMoniker, so MSBuild's
+    # legacy ResolveNuGetPackageAssets task looks up an empty moniker and
+    # fails with "Sequence contains no elements". Pin the moniker that
+    # `msbuild /t:restore` writes into obj/project.assets.json.
+    VS_GLOBAL_NuGetTargetMoniker "native,Version=v0.0"
     VS_GLOBAL_SnowDesktopSourceDirectory "${CMAKE_SOURCE_DIR}"
     VS_GLOBAL_SnowDesktopWindowsAppSdkPackageVersion
         "${SNOWDESKTOP_WINDOWSAPPSDK_PACKAGE_VERSION}"
@@ -880,6 +901,8 @@ add_executable(snowwidget
     src/widget_view_contract_json.cpp)
 target_compile_features(snowwidget PRIVATE cxx_std_20)
 target_include_directories(snowwidget PRIVATE src)
+set_property(TARGET snowwidget PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 target_link_libraries(snowwidget PRIVATE SnowDesktopLua bcrypt ole32)
 target_compile_definitions(snowwidget PRIVATE
     SNOWDESKTOP_VERSION="${SNOWDESKTOP_VERSION}"

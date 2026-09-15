@@ -13,6 +13,22 @@ void DesktopApp::OnMouseWheel(WPARAM wp, LPARAM lp)
     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) currentMods |= MK_CONTROL;
     if (GetAsyncKeyState(VK_MENU) & 0x8000)    currentMods |= MK_ALT;
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)   currentMods |= MK_SHIFT;
+
+    // Alt + 鼠标滚轮翻页（上滚=上一页，下滚=下一页）。拖拽会话中不接管滚轮。
+    if (generalSettings_.altWheelTurnPage &&
+        (currentMods & MK_ALT) &&
+        !dragSession_.IsActive())
+    {
+        const int delta = GET_WHEEL_DELTA_WPARAM(wp);
+        if (delta != 0)
+        {
+            NavigatePageOffset(delta > 0 ? -1 : 1);
+            InvalidateRect(hwnd_, nullptr, FALSE);
+            PresentDesktopPointerUpdate();
+            return;
+        }
+    }
+
     if (dragSession_.IsActive())
         dragSession_.UpdateActionFromMods(
             currentMods,

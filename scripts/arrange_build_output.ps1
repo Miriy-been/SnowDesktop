@@ -289,6 +289,21 @@ try {
         throw "Build output still contains empty runtime payload directories: $($remainingEmptyPayloadDirectories -join ', ')"
     }
 
+    # MSBuild 17.7's legacy NuGet asset resolution copies extra package
+    # runtime DLLs to the output root that are not part of the self-contained
+    # deployment payload (newer MSBuild flows do not copy them, and neither
+    # the deployment manifest nor the application manifest references them).
+    # Remove these artifacts so the layout matches the official payload.
+    $legacyRootArtifacts = @(
+        "Microsoft.Windows.ApplicationModel.Background.UniversalBGTask.dll",
+        "WebView2Loader.dll")
+    foreach ($name in $legacyRootArtifacts) {
+        $source = Join-Path $BuildOutput $name
+        if (Test-Path -LiteralPath $source -PathType Leaf) {
+            Remove-Item -LiteralPath $source -Force
+        }
+    }
+
     $rootDlls = @(Get-ChildItem -LiteralPath $BuildOutput -File -Filter "*.dll")
     if ($rootDlls.Count -ne 0) {
         throw "Build output still contains root-level DLLs: $($rootDlls.Name -join ', ')"

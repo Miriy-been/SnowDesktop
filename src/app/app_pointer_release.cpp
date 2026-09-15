@@ -58,6 +58,11 @@ void DesktopApp::OnMouseLeave()
         dockWindowPreview_->ScheduleHide();
     else
         HideDockWindowPreview();
+    if (dotsHoveredIndex_ != -1)
+    {
+        dotsHoveredIndex_ = -1;
+        InvalidatePageDotsIndicator();
+    }
     SetPageNavHotEdgeHover(0);
     navAutoFlipDir_ = 0;
     navAutoFlipTick_ = 0;
@@ -1099,6 +1104,19 @@ void DesktopApp::OnLeftButtonUpAt(WPARAM wp, POINT upPoint)
             // release test, then end the gesture before any placement path
             // rebuilds the persistent DockHost from normal interaction bounds.
             widgetAction_ = WidgetAction::None;
+            // 拖拽结束：立即复位拖拽位移（避免残留视觉偏移导致组件在
+            // 后续重算布局时“跳走又回来”），并强制 flush 以最终 bounds
+            // 重设视觉位置（覆盖分组/Dock/自由/网格/缩放所有提交路径）。
+            if (mouseDownWidgetIndex_ < widgets_.size())
+            {
+                const std::wstring& draggedId =
+                    widgets_[mouseDownWidgetIndex_].id;
+                if (!draggedId.empty())
+                {
+                    ApplyDesktopWidgetCompositionDragOffset(draggedId, 0, 0);
+                    pendingDesktopWidgetCompositions_.insert(draggedId);
+                }
+            }
             if (canGroup)
             {
                 if (canCollectionGroup)
@@ -1121,6 +1139,44 @@ void DesktopApp::OnLeftButtonUpAt(WPARAM wp, POINT upPoint)
                 SaveLayoutSlots();
                 LayoutItems();
             }
+            else if (IsWidgetFreePositioned(
+                widgets_[mouseDownWidgetIndex_]))
+            {
+                // 自由摆放：保存像素偏移，不做网格碰撞检测。但把偏移钳制
+                // 在页面工作区内，避免组件被拖出屏幕外。
+                DesktopWidget& fw = widgets_[mouseDownWidgetIndex_];
+                const GridPage* fPage = FindGridPage(
+                    gridPages_, fw.gridCell.pageId);
+                RECT fBase = GetGridRect(
+                    gridPages_, fw.gridCell, fw.gridSpan);
+                if (fPage && fBase.right > fBase.left &&
+                    fBase.bottom > fBase.top)
+                {
+                    // 允许区间：把组件完整放进工作区
+                    int minX = fPage->workArea.left - fBase.left;
+                    int maxX = fPage->workArea.right - fBase.right;
+                    int minY = fPage->workArea.top - fBase.top;
+                    int maxY = fPage->workArea.bottom - fBase.bottom;
+                    // 组件比工作区还大时，退化为“让左上角保持在屏内”
+                    if (maxX < minX)
+                        maxX = fPage->workArea.right - fBase.left;
+                    if (maxY < minY)
+                        maxY = fPage->workArea.bottom - fBase.top;
+                    fw.freeOffsetX = std::clamp(
+                        static_cast<int>(widgetPreviewOffset_.x), minX, maxX);
+                    fw.freeOffsetY = std::clamp(
+                        static_cast<int>(widgetPreviewOffset_.y), minY, maxY);
+                }
+                else
+                {
+                    fw.freeOffsetX = widgetPreviewOffset_.x;
+                    fw.freeOffsetY = widgetPreviewOffset_.y;
+                }
+                fw.freePosition = true;
+                LayoutItems();
+                RebuildContainersAndItems();
+                SaveLayoutSlots();
+            }
             else
                 PlaceWidgetWithDisplacement(mouseDownWidgetIndex_, widgetPreviewCell_, widgetPreviewSpan_, true);
         }
@@ -1128,9 +1184,23 @@ void DesktopApp::OnLeftButtonUpAt(WPARAM wp, POINT upPoint)
         {
             widgetAction_ = WidgetAction::None;
             if (completedWidgetAction == WidgetAction::Resize)
-                PlaceWidgetWithDisplacement(mouseDownWidgetIndex_, widgetPreviewCell_, widgetPreviewSpan_, false);
+            {
+                if (IsWidgetFreePositioned(
+                        widgets_[mouseDownWidgetIndex_]))
+                {
+                    // 自由摆放：缩放不触发图标顺延，直接提交新跨度并
+                    // 保持自由偏移（bounds 由 LayoutItems 重算）。
+                    widgets_[mouseDownWidgetIndex_].gridSpan =
+                        widgetPreviewSpan_;
+                    LayoutItems();
+                    SaveLayoutSlots();
+                }
+                else
+                    PlaceWidgetWithDisplacement(mouseDownWidgetIndex_, widgetPreviewCell_, widgetPreviewSpan_, false);
+            }
         }
         // PendingMove/PendingResize: just cancel without displacement
+        widgetContentDragArm_ = false;
         SetCursor(LoadCursorW(nullptr, IDC_ARROW));
         UpdateWidgetHandleCursor(upPoint);
         widgetDockTarget_ = false;

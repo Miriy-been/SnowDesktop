@@ -319,8 +319,24 @@ void DesktopApp::SyncDragPreviewWindow()
     if (!snowdesktop::drag_visual_rules::ShouldCompactPreview(
             validItemCount))
     {
-        dragPreviewItemIndices_.push_back(firstValidIndex);
-        dragPreviewItemBounds_.push_back(firstValidBounds);
+        // 散开模式：每个被拖图标按自身偏移跟随鼠标（Windows 原生风格），
+        // 不叠成一摞。
+        for (std::size_t itemIndex = 0;
+             itemIndex < dragItems.size();
+             ++itemIndex)
+        {
+            Item* item = dragItems[itemIndex];
+            if (!item)
+                continue;
+            const RECT itemBounds = item->GetBounds();
+            if (IsRectEmptyRect(itemBounds))
+                continue;
+            dragPreviewItemIndices_.push_back(itemIndex);
+            dragPreviewItemBounds_.push_back(
+                compactLargeIcon(itemIndex,
+                    dragSession_.ResolveDraggedBounds(
+                        itemIndex, itemBounds, current)));
+        }
     }
     else
     {

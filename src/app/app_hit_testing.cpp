@@ -233,17 +233,24 @@ WidgetHit DesktopApp::HitTestStandaloneWidget(size_t widgetIndex, POINT pt) cons
     if (widget.type != DesktopWidgetType::LuaScript) return WidgetHit::None;
 
     RECT frame = GetStandaloneWidgetFrameRect(widget);
-    if (!PtInRect(&frame, pt)) return WidgetHit::None;
+    // 拖拽命中区向下扩展两倍栏高，方便抓取（对齐旧版手感）。
+    const int handleHeight = ScaleWidgetCu(
+        CurrentPersonalization().barHeight, GetWidgetCellScale(widget));
+    RECT dragFrame = frame;
+    dragFrame.bottom += handleHeight * 2;
+    if (!PtInRect(&dragFrame, pt)) return WidgetHit::None;
     RECT resize = GetStandaloneWidgetResizeHandleRect(widget);
     if (PtInRect(&resize, pt)) return WidgetHit::ResizeHandle;
     if (!snowdesktop::widget_chrome_rules::HasBottomBar(widget.showTitle))
     {
         RECT move = GetStandaloneWidgetCompactMoveHandleRect(widget);
-        if (PtInRect(&move, pt)) return WidgetHit::MoveHandle;
+        if (pt.y >= frame.bottom || PtInRect(&move, pt))
+            return WidgetHit::MoveHandle;
         return WidgetHit::Content;
     }
     RECT move = GetStandaloneWidgetMoveHandleRect(widget);
-    if (PtInRect(&move, pt)) return WidgetHit::MoveHandle;
+    if (pt.y >= frame.bottom || PtInRect(&move, pt))
+        return WidgetHit::MoveHandle;
     return WidgetHit::Content;
 }
 

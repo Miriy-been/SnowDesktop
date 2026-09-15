@@ -118,6 +118,19 @@ bool ReadOptionalInteger(const JsonValue& object, std::string_view name,
     return true;
 }
 
+bool ReadOptionalInteger(const JsonValue& object, std::string_view name,
+    std::string_view path, int& output,
+    std::string* error)
+{
+    const JsonValue* value = object.Find(name);
+    if (!value) return true;
+    int decoded = 0;
+    if (!DecodeInteger(*value, decoded))
+        return Fail(error, path, "must be an integer");
+    output = decoded;
+    return true;
+}
+
 bool ReadOptionalFloat(const JsonValue& object, std::string_view name,
     std::string_view path, std::optional<float>& output,
     std::string* error)
@@ -144,6 +157,18 @@ bool ReadBoolean(const JsonValue& object, std::string_view name,
 
 bool ReadOptionalBoolean(const JsonValue& object, std::string_view name,
     std::string_view path, std::optional<bool>& output,
+    std::string* error)
+{
+    const JsonValue* value = object.Find(name);
+    if (!value) return true;
+    if (!value->IsBoolean())
+        return Fail(error, path, "must be a boolean");
+    output = value->boolean;
+    return true;
+}
+
+bool ReadOptionalBoolean(const JsonValue& object, std::string_view name,
+    std::string_view path, bool& output,
     std::string* error)
 {
     const JsonValue* value = object.Find(name);
@@ -404,6 +429,14 @@ bool DecodeWidgets(const JsonValue& root, Document& document,
                 path + ".bottomBarHover", record.bottomBarHover, error) ||
             !ReadOptionalBoolean(object, "userRenamed",
                 path + ".userRenamed", record.userRenamed, error) ||
+            !ReadOptionalBoolean(object, "locked", path + ".locked",
+                record.locked, error) ||
+            !ReadOptionalBoolean(object, "freePosition",
+                path + ".freePosition", record.freePosition, error) ||
+            !ReadOptionalInteger(object, "freeOffsetX",
+                path + ".freeOffsetX", record.freeOffsetX, error) ||
+            !ReadOptionalInteger(object, "freeOffsetY",
+                path + ".freeOffsetY", record.freeOffsetY, error) ||
             !ReadStringArray(object, "items", path + ".items",
                 record.items, error) ||
             !ReadStringArray(object, "childWidgets",

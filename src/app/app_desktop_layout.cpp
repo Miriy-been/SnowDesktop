@@ -34,7 +34,7 @@ void DesktopApp::LayoutItems()
                     if (&other != &item && !IsItemInAnyWidget(other))
                         MarkGridArea(occupied, other.gridCell, other.gridSpan);
                 for (const auto& widget : widgets_)
-                    if (!IsGroupedWidget(widget)) MarkGridArea(occupied, widget.gridCell, widget.gridSpan);
+                    if (WidgetOccupiesGridSlots(widget)) MarkGridArea(occupied, widget.gridCell, widget.gridSpan);
                 if (!AreGridSlotsMarked(occupied, anchor, desired))
                 {
                     item.gridSpan = desired;
@@ -76,6 +76,14 @@ void DesktopApp::LayoutItems()
         else
             widget.cellScale = 1.0f;
         widget.bounds = GetGridRect(gridPages_, widget.gridCell, widget.gridSpan);
+        // 自由摆放模式：在网格单元位置上叠加像素偏移
+        if (IsWidgetFreePositioned(widget))
+        {
+            widget.bounds.left   += widget.freeOffsetX;
+            widget.bounds.right  += widget.freeOffsetX;
+            widget.bounds.top    += widget.freeOffsetY;
+            widget.bounds.bottom += widget.freeOffsetY;
+        }
     }
 
     // A monitor/grid resize can clamp several anchors into the same cells.
@@ -89,7 +97,7 @@ void DesktopApp::LayoutItems()
             std::unordered_set<std::wstring> occupied;
             for (const auto& other : items_)
                 if (&other != &item && !IsItemInAnyWidget(other)) MarkGridArea(occupied, other.gridCell, other.gridSpan);
-            for (const auto& widget : widgets_) if (!IsGroupedWidget(widget)) MarkGridArea(occupied, widget.gridCell, widget.gridSpan);
+            for (const auto& widget : widgets_) if (WidgetOccupiesGridSlots(widget)) MarkGridArea(occupied, widget.gridCell, widget.gridSpan);
             if (AreGridSlotsMarked(occupied, item.gridCell, item.gridSpan)) { largeIconCollision = true; break; }
         }
     if (largeIconCollision)
@@ -101,7 +109,22 @@ void DesktopApp::LayoutItems()
             item.bounds = GetGridRect(gridPages_, item.gridCell, item.gridSpan);
         }
         for (auto& widget : widgets_)
-            widget.bounds = IsGroupedWidget(widget) ? RECT{} : GetGridRect(gridPages_, widget.gridCell, widget.gridSpan);
+        {
+            if (IsGroupedWidget(widget))
+                widget.bounds = RECT{};
+            else
+            {
+                widget.bounds = GetGridRect(gridPages_, widget.gridCell, widget.gridSpan);
+                // 自由摆放模式：在网格单元位置上叠加像素偏移
+                if (IsWidgetFreePositioned(widget))
+                {
+                    widget.bounds.left   += widget.freeOffsetX;
+                    widget.bounds.right  += widget.freeOffsetX;
+                    widget.bounds.top    += widget.freeOffsetY;
+                    widget.bounds.bottom += widget.freeOffsetY;
+                }
+            }
+        }
     }
     RebuildContainersAndItems();
 }

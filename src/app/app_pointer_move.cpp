@@ -58,6 +58,8 @@ void DesktopApp::OnMiddleButtonDown(WPARAM wp, LPARAM lp)
         }
         if (hit)
         {
+            // 锁定的组件不允许中键拖动。
+            if (widgets_[candidate].locked) return;
             widgetIndex = candidate;
             break;
         }
@@ -108,6 +110,7 @@ void DesktopApp::OnMiddleButtonDown(WPARAM wp, LPARAM lp)
     widgetDragOriginalSpan_ = widgets_[widgetIndex].gridSpan;
     widgetPreviewCell_ = widgetDragOriginalCell_;
     widgetPreviewSpan_ = widgetDragOriginalSpan_;
+    widgetPreviewOffset_ = {};
     dragGroupOriginX_ = widgets_[widgetIndex].bounds.left;
     dragGroupOriginY_ = widgets_[widgetIndex].bounds.top;
     SetCapture(hwnd_);
@@ -133,6 +136,40 @@ void DesktopApp::OnMiddleButtonUpAt(WPARAM wp, POINT point)
 
 void DesktopApp::UpdateWidgetDragPageNavigation(POINT clientPoint)
 {
+    // ── 组件拖拽悬浮到分页圆点：直接跳转到对应页面 ──
+    const int dotIndex = HitTestPageDotsIndicator(clientPoint);
+    if (dotIndex >= 0 && dotIndex <= MaxPageOffset() &&
+        dotIndex != pageOffset_ &&
+        mouseDownWidgetIndex_ < widgets_.size())
+    {
+        navAutoFlipDir_ = 0;
+        navAutoFlipTick_ = 0;
+        SetPageNavHotEdgeHover(0);
+        const RECT oldWidgetBounds =
+            widgets_[mouseDownWidgetIndex_].bounds;
+        pageOffset_ = dotIndex;
+        ApplyPageMapping();
+        LayoutItems();
+        // 翻页后把被拖组件迁移到新末屏页，后续预览/落位都在新页上。
+        if (!lastMonitorPageId_.empty())
+            widgets_[mouseDownWidgetIndex_].gridCell.pageId =
+                lastMonitorPageId_;
+        widgetDragOriginalCell_ = widgets_[mouseDownWidgetIndex_].gridCell;
+        widgetDragOriginalSpan_ = widgets_[mouseDownWidgetIndex_].gridSpan;
+        const RECT newWidgetBounds =
+            widgets_[mouseDownWidgetIndex_].bounds;
+        const int dx = newWidgetBounds.left - oldWidgetBounds.left;
+        const int dy = newWidgetBounds.top - oldWidgetBounds.top;
+        dragGroupOriginX_ += dx;
+        dragGroupOriginY_ += dy;
+        mouseDownPoint_.x += dx;
+        mouseDownPoint_.y += dy;
+        InvalidateDragStaticScene();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+        PresentDesktopPointerUpdate();
+        return;
+    }
+
     int navSide = 0;
     int maximumOffset = 0;
     if (!gridPages_.empty() &&
@@ -193,6 +230,12 @@ void DesktopApp::UpdateWidgetDragPageNavigation(POINT clientPoint)
     ApplyPageMapping();
     LayoutItems();
     RefreshPageNavHotEdgeHoverAt(clientPoint);
+    // 翻页后把被拖组件迁移到新末屏页，后续预览/落位都在新页上。
+    if (!lastMonitorPageId_.empty())
+        widgets_[mouseDownWidgetIndex_].gridCell.pageId =
+            lastMonitorPageId_;
+    widgetDragOriginalCell_ = widgets_[mouseDownWidgetIndex_].gridCell;
+    widgetDragOriginalSpan_ = widgets_[mouseDownWidgetIndex_].gridSpan;
     const RECT newWidgetBounds =
         widgets_[mouseDownWidgetIndex_].bounds;
     const int dx =
@@ -231,6 +274,15 @@ void DesktopApp::OnMouseMoveAt(
 
     POINT oldMouse = lastMousePoint_;
     lastMousePoint_ = current;
+    // 圆点指示器悬停状态变化时只重绘指示器区域
+    {
+        const int hoveredDot = HitTestPageDotsIndicator(current);
+        if (hoveredDot != dotsHoveredIndex_)
+        {
+            dotsHoveredIndex_ = hoveredDot;
+            InvalidatePageDotsIndicator();
+        }
+    }
     if (HandleLargeIconPointerMove(current)) return;
     UpdateLargeIconHover();
     UpdateSystemTaskbarRevealGuard();
@@ -630,6 +682,8 @@ void DesktopApp::OnMouseMoveAt(
             widgetAction_ = WidgetAction::Move;
         else if (widgetAction_ == WidgetAction::PendingResize)
             widgetAction_ = WidgetAction::Resize;
+        // 进入拖拽时清零自由摆放像素偏移预览，避免残留上一轮拖拽的值
+        widgetPreviewOffset_ = {};
         UpdateWidgetHandleCursor(current);
         if (widgetEngine_)
             widgetEngine_->ClearInteractionHover();
@@ -664,8 +718,48 @@ void DesktopApp::OnMouseMoveAt(
             widgetPreviewCell_ = cell;
             widgetPreviewSpan_ = span;
         }
+        // 缩放跟随：表面按新 bounds 重建（尺寸变化需要重绘内容），
+        // 自由摆放的组件保持其自由偏移，避免缩放时跳回网格位置。
+        {
+            DesktopWidget& dragged = widgets_[mouseDownWidgetIndex_];
+            RECT previewBounds = GetGridRect(
+                gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
+            if (IsWidgetFreePositioned(dragged))
+            {
+                previewBounds.left += dragged.freeOffsetX;
+                previewBounds.right += dragged.freeOffsetX;
+                previewBounds.top += dragged.freeOffsetY;
+                previewBounds.bottom += dragged.freeOffsetY;
+            }
+            dragged.bounds = previewBounds;
+            // 加入合成重建队列，让组件表面按新尺寸重建（实时缩放）。
+            pendingDesktopWidgetCompositions_.insert(dragged.id);
+            InvalidateRect(hwnd_, nullptr, FALSE);
+        }
         ShowDragHintWindow(current, _LW("core.drag.resize_widget"));
         return;
+    }
+
+    // Lua 组件内容区按住拖动：移动超过阈值转为移动整个组件
+    //（未拖动松开时点击仍作为内容点击透传给 Lua）。
+    if (widgetAction_ == WidgetAction::PendingMove &&
+        !middleButtonWidgetMove_ && widgetContentDragArm_ &&
+        mouseDownWidgetIndex_ < widgets_.size() &&
+        widgets_[mouseDownWidgetIndex_].type == DesktopWidgetType::LuaScript &&
+        widgetEngine_ &&
+        (std::abs(current.x - mouseDownPoint_.x) > 3 ||
+            std::abs(current.y - mouseDownPoint_.y) > 3))
+    {
+        RECT convFrame = GetStandaloneWidgetFrameRect(
+            widgets_[mouseDownWidgetIndex_]);
+        widgetEngine_->InvokeMouseEvent(
+            widgets_[mouseDownWidgetIndex_].id, "onMouseUp",
+            current.x - convFrame.left,
+            current.y - convFrame.top, 1, 0);
+        widgetAction_ = WidgetAction::Move;
+        widgetContentDragArm_ = false;
+        InvalidateRect(hwnd_, nullptr, FALSE);
+        // 落入下方的组件拖拽预览处理
     }
 
     // Widget drag preview
@@ -771,6 +865,19 @@ void DesktopApp::OnMouseMoveAt(
             dragGroupOriginX_ + (current.x - mouseDownPoint_.x),
             dragGroupOriginY_ + (current.y - mouseDownPoint_.y)
         };
+        if (IsWidgetFreePositioned(widgets_[mouseDownWidgetIndex_]))
+        {
+            // 自由摆放：不吸附网格，计算相对原始网格单元左上角的
+            // 像素偏移，预览格位保持原值。
+            RECT cellRect = GetGridRect(gridPages_,
+                widgetDragOriginalCell_, widgetDragOriginalSpan_);
+            widgetPreviewOffset_.x = adjusted.x - cellRect.left;
+            widgetPreviewOffset_.y = adjusted.y - cellRect.top;
+            widgetPreviewCell_ = widgetDragOriginalCell_;
+            widgetPreviewSpan_ = widgetDragOriginalSpan_;
+        }
+        else
+        {
         GridCell cell = CellFromPointForDrag(adjusted);
         if (!cell.pageId.empty())
         {
@@ -782,6 +889,25 @@ void DesktopApp::OnMouseMoveAt(
                     widgetDragOriginalSpan_);
             }
             widgetPreviewCell_ = cell;
+        }
+        }
+        // 拖拽跟随（v1.0.3 风格）：直接平移组件的合成视觉，表面内容
+        // 像素级不变（无重排、无残影、无占位框）。自由摆放的组件按
+        // 像素偏移预览。
+        {
+            DesktopWidget& dragged = widgets_[mouseDownWidgetIndex_];
+            RECT previewBounds = GetGridRect(
+                gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
+            if (IsWidgetFreePositioned(dragged))
+            {
+                previewBounds.left += widgetPreviewOffset_.x;
+                previewBounds.right += widgetPreviewOffset_.x;
+                previewBounds.top += widgetPreviewOffset_.y;
+                previewBounds.bottom += widgetPreviewOffset_.y;
+            }
+            ApplyDesktopWidgetCompositionDragOffset(dragged.id,
+                previewBounds.left - dragged.bounds.left,
+                previewBounds.top - dragged.bounds.top);
         }
         ShowDragHintWindow(current, _LW("core.drag.move_widget"));
         return;

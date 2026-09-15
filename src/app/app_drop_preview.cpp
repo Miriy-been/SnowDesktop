@@ -370,7 +370,7 @@ DropPreviewList DesktopApp::BuildDropPreviewList(const DragSourceList& sourceLis
 
             std::unordered_set<std::wstring> usedSlots;
             for (const auto& widget : widgets_)
-                if (!IsGroupedWidget(widget))
+                if (WidgetOccupiesGridSlots(widget))
                     MarkGridArea(
                         usedSlots, widget.gridCell,
                         widget.gridSpan);
@@ -468,7 +468,33 @@ DropPreviewList DesktopApp::BuildDropPreviewList(const DragSourceList& sourceLis
         GridCell targetCell = ResolveDesktopRequestCell(
             sourceList, dropPoint);
         bool internalMove = !IsDropFileBacked(sourceList, preview.targetKind, preview.action);
-        if (internalMove)
+        // 桌面内部移动：按“最近槽位中心”吸附（对齐 Windows 原生），把图标
+        // 拖到两格间隙/分界线时会被就近吸附，而不是左上角一过格线就进下一格。
+        const bool desktopToDesktopMove =
+            internalMove && sourceList.hasDesktopIcons &&
+            !containers_.empty() &&
+            sourceList.origin == containers_.front().get();
+        if (desktopToDesktopMove && sourceList.entries.size() == 1)
+        {
+            // 单个桌面图标：用“图标中心”吸附而非左上角（对齐 Windows 原生）。
+            // adjusted 是扣除抓取偏移后图标左上角的目标点，加上半格即图标
+            // 中心——只需把图标拖过约半格就切到下一行，不用精准对齐整格。
+            const POINT adjusted = GetDragTargetPoint(dropPoint);
+            const GridPage* pPage = GridPageFromPoint(adjusted);
+            if (pPage)
+            {
+                POINT center{
+                    adjusted.x + pPage->cellWidth / 2,
+                    adjusted.y + pPage->cellHeight / 2
+                };
+                targetCell = CellFromPoint(center);
+            }
+            else
+            {
+                targetCell = CellFromPointForDrag(dropPoint);
+            }
+        }
+        else if (internalMove)
             targetCell = FindBestDropCell(sourceList, targetCell);
         preview.anchorCell = targetCell;
         preview.fileBacked = !internalMove;

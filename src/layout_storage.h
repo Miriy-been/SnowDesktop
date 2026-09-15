@@ -75,6 +75,10 @@ struct WidgetRecord
     bool scrollContainerMode = false;
     bool largeFolderTitleless = false;
     bool keepWhenDesktopHidden = false;
+    bool locked = false;
+    bool freePosition = false;
+    int freeOffsetX = 0;
+    int freeOffsetY = 0;
     std::optional<bool> showTitle;
     std::optional<bool> bottomBarHover;
     std::optional<bool> userRenamed;

@@ -19,6 +19,17 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
     ClearPopupDragTarget();
     pendingGuideAction_ = WidgetHit::None;
     POINT pt{ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+
+    // 圆点分页指示器点击 → 跳转到对应页面
+    {
+        const int dotPage = HitTestPageDotsIndicator(pt);
+        if (dotPage >= 0)
+        {
+            JumpToPageOffset(dotPage);
+            return;
+        }
+    }
+
     if (HandleLargeIconPointerDown(pt)) return;
     if (!luaWidgetPanelRequest_.widgetId.empty() &&
         luaWidgetPanelAnimation_.IsInteractive())
@@ -734,6 +745,14 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
         WidgetHit wh = HitTestStandaloneWidget(wi, pt);
         if (wh == WidgetHit::None) continue;
 
+        // 锁定的组件不允许拖动/缩放：句柄命中降级为内容区单击（仍可选中）。
+        if (widgets_[wi].locked &&
+            (wh == WidgetHit::ResizeHandle ||
+             wh == WidgetHit::MoveHandle))
+        {
+            wh = WidgetHit::Content;
+        }
+
         if (wh == WidgetHit::ResizeHandle)
         {
             SelectWidgetOnly(wi);
@@ -792,6 +811,21 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
         mouseDownWidgetIndex_ = wi;
         mouseDownHit_ = nullptr;
         SetCapture(hwnd_);
+        // 内容区按住：武装“整个组件拖拽”，移动超过阈值转为移动组件
+        // （点按不拖动时仍作为内容点击透传给 Lua）。
+        if (!hostInputArea && !widgets_[wi].locked)
+        {
+            widgetAction_ = WidgetAction::PendingMove;
+            widgetContentDragArm_ = true;
+            mouseDownPoint_ = pt;
+            widgetDragOriginalCell_ = widgets_[wi].gridCell;
+            widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetPreviewCell_ = widgetDragOriginalCell_;
+            widgetPreviewSpan_ = widgetDragOriginalSpan_;
+            RECT armBounds = widgets_[wi].bounds;
+            dragGroupOriginX_ = armBounds.left;
+            dragGroupOriginY_ = armBounds.top;
+        }
         if (widgetEngine_ && widgets_[wi].type == DesktopWidgetType::LuaScript)
         {
             if (IsRectEmptyRect(luaFrame))
@@ -825,6 +859,14 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
 
         WidgetHit wh = wc->HitTestWidget(pt);
         if (wh == WidgetHit::None) continue;
+
+        // 锁定的组件不允许拖动/缩放：句柄命中降级为内容区单击（仍可选中）。
+        if (widgets_[wi].locked &&
+            (wh == WidgetHit::ResizeHandle ||
+             wh == WidgetHit::MoveHandle))
+        {
+            wh = WidgetHit::Content;
+        }
 
         if (wh != WidgetHit::ResizeHandle &&
             wh != WidgetHit::MoveHandle)
@@ -1015,14 +1057,33 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
                 return;
             }
 
-            // Empty content selects the widget itself.
+            // Empty content selects the widget itself and arms
+            // whole-widget drag（空白区按住拖动 = 移动整个组件；
+            // 未拖动松开时仅保留选中）。锁定组件保留框选行为。
             ClearSelection();
             widgets_[wi].selected = true;
             mouseDownWidgetIndex_ = wi;
-            marqueeWidgetIndex_ = wi;
-            marqueeInitialScrollOffset_ = wc->GetScrollOffset();
             mouseDownHit_ = nullptr;
             SetCapture(hwnd_);
+            if (!widgets_[wi].locked)
+            {
+                widgetAction_ = WidgetAction::PendingMove;
+                widgetContentDragArm_ = true;
+                mouseDown_ = true;
+                mouseDownPoint_ = pt;
+                widgetDragOriginalCell_ = widgets_[wi].gridCell;
+                widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+                widgetPreviewCell_ = widgetDragOriginalCell_;
+                widgetPreviewSpan_ = widgetDragOriginalSpan_;
+                RECT armBounds = widgets_[wi].bounds;
+                dragGroupOriginX_ = armBounds.left;
+                dragGroupOriginY_ = armBounds.top;
+            }
+            else
+            {
+                marqueeWidgetIndex_ = wi;
+                marqueeInitialScrollOffset_ = wc->GetScrollOffset();
+            }
             InvalidateRect(hwnd_, nullptr, FALSE);
             return;
         }

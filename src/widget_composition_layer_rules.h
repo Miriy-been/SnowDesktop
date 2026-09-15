@@ -53,6 +53,9 @@ struct WidgetDragFeedbackState
     int row = 0;
     int columns = 1;
     int rows = 1;
+    /// 自由摆放拖拽时的像素偏移；非零值让预览逐帧重呈现。
+    int offsetX = 0;
+    int offsetY = 0;
     bool dockTarget = false;
     std::uintptr_t dockOwner = 0;
     std::size_t dockInsertIndex = 0;

@@ -565,37 +565,22 @@ LoadDisplayTargetMetadata()
             if (DisplayConfigGetDeviceInfo(&target.header) == ERROR_SUCCESS)
                 metadata.friendlyName = target.monitorFriendlyDeviceName;
 
-            DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 color2{};
-            color2.header.type =
-                DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2;
-            color2.header.size = sizeof(color2);
-            color2.header.adapterId = path.targetInfo.adapterId;
-            color2.header.id = path.targetInfo.id;
-            if (DisplayConfigGetDeviceInfo(&color2.header) == ERROR_SUCCESS)
+            // DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 requires Windows SDK
+            // 26100+ headers; builds must stay compatible with SDK 22621,
+            // so only the classic advanced color query is used here.
+            DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO color{};
+            color.header.type =
+                DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO;
+            color.header.size = sizeof(color);
+            color.header.adapterId = path.targetInfo.adapterId;
+            color.header.id = path.targetInfo.id;
+            if (DisplayConfigGetDeviceInfo(&color.header) == ERROR_SUCCESS)
             {
                 metadata.hdrKnown = true;
                 metadata.hdrSupported =
-                    color2.highDynamicRangeSupported != 0;
+                    color.advancedColorSupported != 0;
                 metadata.hdrEnabled =
-                    color2.highDynamicRangeUserEnabled != 0;
-            }
-            else
-            {
-                DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO color{};
-                color.header.type =
-                    DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO;
-                color.header.size = sizeof(color);
-                color.header.adapterId = path.targetInfo.adapterId;
-                color.header.id = path.targetInfo.id;
-                if (DisplayConfigGetDeviceInfo(
-                        &color.header) == ERROR_SUCCESS)
-                {
-                    metadata.hdrKnown = true;
-                    metadata.hdrSupported =
-                        color.advancedColorSupported != 0;
-                    metadata.hdrEnabled =
-                        color.advancedColorEnabled != 0;
-                }
+                    color.advancedColorEnabled != 0;
             }
             result[LowerWide(source.viewGdiDeviceName)] =
                 std::move(metadata);

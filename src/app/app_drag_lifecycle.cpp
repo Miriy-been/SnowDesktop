@@ -141,6 +141,8 @@ void DesktopApp::PresentPointerInteractionFrame(
     widgetDragFeedback.row = widgetPreviewCell_.row;
     widgetDragFeedback.columns = widgetPreviewSpan_.columns;
     widgetDragFeedback.rows = widgetPreviewSpan_.rows;
+    widgetDragFeedback.offsetX = widgetPreviewOffset_.x;
+    widgetDragFeedback.offsetY = widgetPreviewOffset_.y;
     widgetDragFeedback.dockTarget = widgetDockTarget_;
     widgetDragFeedback.dockOwner = reinterpret_cast<std::uintptr_t>(
         widgetDockTargetContainer_);

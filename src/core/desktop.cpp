@@ -488,10 +488,9 @@ std::wstring DesktopGrid::GetDragHint(Slot* slot, HitRegion region,
         return _LW("core.drag.release_move_here");
     }
 
-    if (app_->BuildSelectedMove(bestCell).empty())
-        return _LW("core.drag.release_occupied");
-
-    return _LW("core.drag.release_move_here");
+    // 从桌面网格拖出图标本身：不显示“移动到此空位/占用”提示，
+    // 拖拽过程仅以跟随鼠标的虚影作为反馈，释放后吸附到最近网格空位。
+    return L"";
 }
 
 /**
@@ -715,7 +714,13 @@ void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion
         hasItemDrag,
         hasItemDrag ? app_->dragSession_.SourceList() : DragSourceList{},
         this, slot, region, mods, dragPoint);
-    app_->DrawDesktopDropPreviewList(ctx, preview);
+    // 从桌面网格拖出图标本身：拖拽过程不渲染落点预览方框，
+    // 仅以跟随鼠标的图标虚影作为反馈，释放后吸附到最近网格空位。
+    const bool desktopIconFreeDrag =
+        hasItemDrag &&
+        app_->dragSession_.Source() == app_->GetDesktopGrid();
+    if (!desktopIconFreeDrag)
+        app_->DrawDesktopDropPreviewList(ctx, preview);
     if (hasItemDrag && preview.Empty() && !preview.fileBacked &&
         app_->dragSession_.SourceList().origin == this)
     {

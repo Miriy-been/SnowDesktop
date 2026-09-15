@@ -88,7 +88,7 @@ void DesktopApp::SortIconsByName(bool ascending)
 
         std::unordered_set<std::wstring> usedSlots;
         for (const auto& widget : widgets_)
-            if (!IsGroupedWidget(widget) &&
+            if (WidgetOccupiesGridSlots(widget) &&
                 widget.gridCell.pageId == page.id)
                 MarkGridArea(usedSlots, widget.gridCell, widget.gridSpan);
 
@@ -152,7 +152,7 @@ void DesktopApp::SortIconsByType(bool ascending)
 
         std::unordered_set<std::wstring> usedSlots;
         for (const auto& widget : widgets_)
-            if (!IsGroupedWidget(widget) &&
+            if (WidgetOccupiesGridSlots(widget) &&
                 widget.gridCell.pageId == page.id)
                 MarkGridArea(usedSlots, widget.gridCell, widget.gridSpan);
 

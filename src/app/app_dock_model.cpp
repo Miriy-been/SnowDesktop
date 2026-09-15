@@ -159,6 +159,43 @@ bool DesktopApp::IsGroupedWidget(
         FindFileGroupIndexForChild(widget.id) < widgets_.size();
 }
 
+bool DesktopApp::IsWidgetFreePositioned(
+    const DesktopWidget& widget) const
+{
+    return widget.freePosition ||
+        generalSettings_.widgetFreePosition;
+}
+
+bool DesktopApp::WidgetOccupiesGridSlots(
+    const DesktopWidget& widget) const
+{
+    if (IsGroupedWidget(widget)) return false;
+    // 自由摆放的组件视觉已移到格位之外，其原型网格格位不再占用，
+    // 以便图标能落到原本被它占住的位置。
+    if (IsWidgetFreePositioned(widget)) return false;
+    return true;
+}
+
+void DesktopApp::ClearAllWidgetsFreePosition()
+{
+    bool changed = false;
+    for (auto& widget : widgets_)
+    {
+        if (widget.freePosition || widget.freeOffsetX != 0 ||
+            widget.freeOffsetY != 0)
+        {
+            widget.freePosition = false;
+            widget.freeOffsetX = 0;
+            widget.freeOffsetY = 0;
+            changed = true;
+        }
+    }
+    if (!changed) return;
+    LayoutItems();
+    SaveLayoutSlots();
+    InvalidateRect(hwnd_, nullptr, TRUE);
+}
+
 bool DesktopApp::IsRecycleBinDockEntry(const DockEntry& entry) const
 {
     return entry.type == DockEntryType::DesktopItem &&

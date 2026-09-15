@@ -2100,6 +2100,17 @@ struct SettingsWindowHost::Impl
                     generation, mode, std::move(edit));
             }
         };
+        desktop.updateGeneral = [weak](
+            std::uint64_t generation,
+            SettingsUpdateMode mode,
+            DesktopPageActions::GeneralEdit edit) {
+            if (const auto state = weak.lock();
+                state && state->alive.load() && state->owner)
+            {
+                state->owner->EditGeneral(
+                    generation, mode, std::move(edit));
+            }
+        };
         desktop.commitCategory = [weak](std::uint64_t generation) {
             const auto state = weak.lock();
             if (!state || !state->alive.load() || !state->owner ||

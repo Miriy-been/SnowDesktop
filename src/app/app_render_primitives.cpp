@@ -64,7 +64,8 @@ void DesktopApp::DrawD2DRoundedRectangle(
 void DesktopApp::DrawWidgetPanelBackground(ID2D1DeviceContext* ctx, RECT frame, float radius,
     D2D1_COLOR_F fill, D2D1_COLOR_F border, bool selected, float strokeWidth,
     const PersonalizationSettings* effectSettings, bool registerBackdrop,
-    std::uintptr_t backdropOwnerKey, float effectScale)
+    std::uintptr_t backdropOwnerKey, float effectScale,
+    bool suppressBorder)
 {
     if (!ctx || IsRectEmptyRect(frame)) return;
     if (ctx != brushCacheContext_ || brushCache_.size() >= 512)
@@ -139,16 +140,20 @@ void DesktopApp::DrawWidgetPanelBackground(ID2D1DeviceContext* ctx, RECT frame, 
             screenOrigin);
     }
 
-    D2D1_COLOR_F stroke = selected
-        ? D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.90f)
-        : border;
+    // 组件选中不再绘制蓝色描边（用户偏好：无边框样式）。
+    D2D1_COLOR_F stroke = border;
+    // 全局隐藏组件边框：常规边框与边缘高光一并跳过。
+    if (suppressBorder)
+    {
+        stroke.a = 0.0f;
+    }
     if (stroke.a > 0.0f)
     {
         strokeWidth = std::max(kMinimumWidgetBorderWidth, strokeWidth);
         if (auto* strokeBrush = getBrush(stroke))
             ctx->DrawRoundedRectangle(rr, strokeBrush, strokeWidth, nullptr);
     }
-    if (!selected)
+    if (!selected && !suppressBorder)
         (void)DrawWidgetPanelEdgeHighlight(
             ctx, frame, radius, fill, &p, effectScale);
 }

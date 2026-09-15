@@ -538,6 +538,8 @@ struct DesktopPagePresenter::Impl
     muxc::StackPanel categoryRoot{nullptr};
 
     SettingsCard displayCard;
+    SettingsCard pageDotsCard;
+    SettingsCard widgetGlobalCard;
     SettingsCard categoryLayoutCard;
     SettingsCard beautifyCard;
     SettingsCard categoryRulesCard;
@@ -550,6 +552,24 @@ struct DesktopPagePresenter::Impl
     muxc::TextBlock shortcutArrowLabel{nullptr};
     muxc::ComboBox shortcutArrow{nullptr};
     SettingRow shortcutArrowRow;
+
+    std::unique_ptr<NumericEditor> pageDotsSize;
+    std::unique_ptr<NumericEditor> pageDotsGap;
+    muxc::ComboBox pageDotsColor{nullptr};
+    SettingRow pageDotsColorRow;
+    std::unique_ptr<ColorEditor> pageDotsColorCustom;
+    muxc::ComboBox pageDotsVertical{nullptr};
+    SettingRow pageDotsVerticalRow;
+    muxc::ComboBox pageDotsHorizontal{nullptr};
+    SettingRow pageDotsHorizontalRow;
+    std::unique_ptr<NumericEditor> pageDotsMargin;
+    muxc::ToggleSwitch pageDotsShowName{nullptr};
+    SettingRow pageDotsShowNameRow;
+
+    muxc::ToggleSwitch widgetFreePosition{nullptr};
+    SettingRow widgetFreePositionRow;
+    muxc::ToggleSwitch widgetHideBorder{nullptr};
+    SettingRow widgetHideBorderRow;
 
     muxc::ToggleSwitch showCategoryTabCounts{nullptr};
     SettingRow showCategoryTabCountsRow;
@@ -612,6 +632,7 @@ struct DesktopPagePresenter::Impl
 
     std::uint64_t generation = 0;
     std::uint64_t desktopRevision = 0;
+    std::uint64_t generalRevision = 0;
     std::uint64_t categoryRevision = 0;
     std::uint64_t personalizationRevision = 0;
     bool hasSnapshot = false;
@@ -623,6 +644,12 @@ struct DesktopPagePresenter::Impl
 
     winrt::event_token shortcutArrowToken{};
     winrt::event_token showCountsToken{};
+    winrt::event_token pageDotsColorToken{};
+    winrt::event_token pageDotsVerticalToken{};
+    winrt::event_token pageDotsHorizontalToken{};
+    winrt::event_token pageDotsShowNameToken{};
+    winrt::event_token widgetFreePositionToken{};
+    winrt::event_token widgetHideBorderToken{};
     winrt::event_token beautifyPresetToken{};
     winrt::event_token beautifyModeToken{};
     winrt::event_token gradientEnabledToken{};
@@ -691,6 +718,39 @@ struct DesktopPagePresenter::Impl
                 SettingsUpdateMode mode) {
                 UpdateBeautify(mode,
                     [edit, value](IconBeautifySettings& settings) {
+                        edit(settings, value);
+                    });
+            });
+    }
+
+    std::unique_ptr<NumericEditor> MakeGeneralNumber(
+        double minimum,
+        double maximum,
+        double step,
+        int digits,
+        std::function<void(GeneralSettings&, double)> edit)
+    {
+        return std::make_unique<NumericEditor>(minimum, maximum, step, digits,
+            [this, edit = std::move(edit)](
+                double value, SettingsUpdateMode mode) {
+                UpdateGeneral(mode,
+                    [edit, value](GeneralSettings& settings) {
+                        edit(settings, value);
+                    });
+            });
+    }
+
+    std::unique_ptr<ColorEditor> MakeGeneralColor(
+        std::function<void(
+            GeneralSettings&,
+            const winrt::Windows::UI::Color&)> edit)
+    {
+        return std::make_unique<ColorEditor>(
+            [this, edit = std::move(edit)](
+                const winrt::Windows::UI::Color& value,
+                SettingsUpdateMode mode) {
+                UpdateGeneral(mode,
+                    [edit, value](GeneralSettings& settings) {
                         edit(settings, value);
                     });
             });
@@ -766,6 +826,57 @@ struct DesktopPagePresenter::Impl
             displayCard.content.Children().Append(editor->root);
         }
         AppendCombo(displayCard, shortcutArrowRow, shortcutArrow);
+
+        InitializeCard(pageDotsCard, cardStyle, desktopIconsRoot);
+        pageDotsSize = MakeGeneralNumber(2.0, 16.0, 0.5, 1,
+            [](GeneralSettings& settings, double value) {
+                settings.pageDotsActiveRadius = static_cast<float>(value);
+            });
+        pageDotsGap = MakeGeneralNumber(1.0, 30.0, 0.5, 1,
+            [](GeneralSettings& settings, double value) {
+                settings.pageDotsGap = static_cast<float>(value);
+            });
+        for (const auto* editor : {pageDotsSize.get(), pageDotsGap.get()})
+        {
+            pageDotsCard.content.Children().Append(editor->root);
+        }
+        AppendCombo(pageDotsCard, pageDotsColorRow, pageDotsColor);
+        pageDotsColorCustom = MakeGeneralColor(
+            [](GeneralSettings& settings,
+               const winrt::Windows::UI::Color& color) {
+                settings.pageDotsColorR = color.R;
+                settings.pageDotsColorG = color.G;
+                settings.pageDotsColorB = color.B;
+            });
+        pageDotsCard.content.Children().Append(pageDotsColorCustom->root);
+        AppendCombo(pageDotsCard, pageDotsVerticalRow, pageDotsVertical);
+        AppendCombo(pageDotsCard, pageDotsHorizontalRow, pageDotsHorizontal);
+        pageDotsMargin = MakeGeneralNumber(8.0, 100.0, 1.0, 0,
+            [](GeneralSettings& settings, double value) {
+                settings.pageDotsMargin = static_cast<float>(value);
+            });
+        pageDotsCard.content.Children().Append(pageDotsMargin->root);
+        pageDotsShowName = muxc::ToggleSwitch{};
+        pageDotsShowName.HorizontalAlignment(mux::HorizontalAlignment::Right);
+        pageDotsShowNameRow.Initialize(pageDotsShowName);
+        pageDotsShowNameRow.SetControlAlignment(
+            mux::HorizontalAlignment::Right);
+        pageDotsCard.content.Children().Append(pageDotsShowNameRow.root);
+
+        InitializeCard(widgetGlobalCard, cardStyle, desktopIconsRoot);
+        widgetFreePosition = muxc::ToggleSwitch{};
+        widgetFreePosition.HorizontalAlignment(mux::HorizontalAlignment::Right);
+        widgetFreePositionRow.Initialize(widgetFreePosition);
+        widgetFreePositionRow.SetControlAlignment(
+            mux::HorizontalAlignment::Right);
+        widgetGlobalCard.content.Children().Append(
+            widgetFreePositionRow.root);
+        widgetHideBorder = muxc::ToggleSwitch{};
+        widgetHideBorder.HorizontalAlignment(mux::HorizontalAlignment::Right);
+        widgetHideBorderRow.Initialize(widgetHideBorder);
+        widgetHideBorderRow.SetControlAlignment(
+            mux::HorizontalAlignment::Right);
+        widgetGlobalCard.content.Children().Append(widgetHideBorderRow.root);
 
         InitializeCard(categoryLayoutCard, cardStyle, categoryRoot);
         showCategoryTabCounts = muxc::ToggleSwitch{};
@@ -1010,6 +1121,17 @@ struct DesktopPagePresenter::Impl
     }
 
     template <typename Edit>
+    void UpdateGeneral(SettingsUpdateMode mode, Edit edit)
+    {
+        if (!closed && active && hasSnapshot && !updatingControls &&
+            actions.updateGeneral)
+        {
+            actions.updateGeneral(generation, mode,
+                DesktopPageActions::GeneralEdit(std::move(edit)));
+        }
+    }
+
+    template <typename Edit>
     void UpdateCategory(SettingsUpdateMode mode, Edit edit)
     {
         if (!closed && active && hasSnapshot && !updatingControls &&
@@ -1048,6 +1170,58 @@ struct DesktopPagePresenter::Impl
                 UpdatePersonalization(SettingsUpdateMode::PreviewAndCommit,
                     [enabled](PersonalizationSettings& settings) {
                         settings.showCategoryTabCounts = enabled;
+                    });
+            });
+        pageDotsColorToken = pageDotsColor.SelectionChanged(
+            [this](const auto&, const auto&) {
+                const int selection = pageDotsColor.SelectedIndex();
+                if (selection < 0) return;
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [selection](GeneralSettings& settings) {
+                        settings.pageDotsColorMode = selection;
+                    });
+                UpdateConditionalStates();
+            });
+        pageDotsVerticalToken = pageDotsVertical.SelectionChanged(
+            [this](const auto&, const auto&) {
+                const int selection = pageDotsVertical.SelectedIndex();
+                if (selection < 0) return;
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [selection](GeneralSettings& settings) {
+                        settings.pageDotsVertical = selection;
+                    });
+            });
+        pageDotsHorizontalToken = pageDotsHorizontal.SelectionChanged(
+            [this](const auto&, const auto&) {
+                const int selection = pageDotsHorizontal.SelectedIndex();
+                if (selection < 0) return;
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [selection](GeneralSettings& settings) {
+                        settings.pageDotsHorizontal = selection;
+                    });
+            });
+        pageDotsShowNameToken = pageDotsShowName.Toggled(
+            [this](const auto&, const auto&) {
+                const bool enabled = pageDotsShowName.IsOn();
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [enabled](GeneralSettings& settings) {
+                        settings.pageDotsShowName = enabled;
+                    });
+            });
+        widgetFreePositionToken = widgetFreePosition.Toggled(
+            [this](const auto&, const auto&) {
+                const bool enabled = widgetFreePosition.IsOn();
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [enabled](GeneralSettings& settings) {
+                        settings.widgetFreePosition = enabled;
+                    });
+            });
+        widgetHideBorderToken = widgetHideBorder.Toggled(
+            [this](const auto&, const auto&) {
+                const bool enabled = widgetHideBorder.IsOn();
+                UpdateGeneral(SettingsUpdateMode::Commit,
+                    [enabled](GeneralSettings& settings) {
+                        settings.widgetHideBorder = enabled;
                     });
             });
         beautifyPresetToken = beautifyPreset.SelectionChanged(
@@ -1373,6 +1547,10 @@ struct DesktopPagePresenter::Impl
         outlineDetails.Visibility(outlineEnabled.IsOn()
                 ? mux::Visibility::Visible
                 : mux::Visibility::Collapsed);
+        const bool pageDotsCustomColor = pageDotsColor.SelectedIndex() == 4;
+        pageDotsColorCustom->root.Visibility(
+            pageDotsCustomColor ? mux::Visibility::Visible
+                                : mux::Visibility::Collapsed);
     }
 
     void PatchDesktop(const DesktopDisplaySettings& settings)
@@ -1420,6 +1598,29 @@ struct DesktopPagePresenter::Impl
             value.outlineR, value.outlineG, value.outlineB));
     }
 
+    void PatchPageDots(const GeneralSettings& settings)
+    {
+        pageDotsSize->SetValue(settings.pageDotsActiveRadius);
+        pageDotsGap->SetValue(settings.pageDotsGap);
+        pageDotsColor.SelectedIndex(
+            std::clamp(settings.pageDotsColorMode, 0, 4));
+        pageDotsColorCustom->SetColor(MakeColor(
+            ColorFloat(static_cast<std::uint8_t>(
+                std::clamp(settings.pageDotsColorR, 0, 255))),
+            ColorFloat(static_cast<std::uint8_t>(
+                std::clamp(settings.pageDotsColorG, 0, 255))),
+            ColorFloat(static_cast<std::uint8_t>(
+                std::clamp(settings.pageDotsColorB, 0, 255)))));
+        pageDotsVertical.SelectedIndex(
+            std::clamp(settings.pageDotsVertical, 0, 1));
+        pageDotsHorizontal.SelectedIndex(
+            std::clamp(settings.pageDotsHorizontal, 0, 2));
+        pageDotsMargin->SetValue(settings.pageDotsMargin);
+        pageDotsShowName.IsOn(settings.pageDotsShowName);
+        widgetFreePosition.IsOn(settings.widgetFreePosition);
+        widgetHideBorder.IsOn(settings.widgetHideBorder);
+    }
+
     [[nodiscard]] bool HasActiveDesktopEdit() const noexcept
     {
         for (const NumericEditor* editor : {
@@ -1430,13 +1631,15 @@ struct DesktopPagePresenter::Impl
                  highlightAngle.get(), shadeStrength.get(),
                  edgeHighlight.get(), filterStrength.get(),
                  shadowStrength.get(), outlineWidth.get(),
-                 outlineOpacity.get()})
+                 outlineOpacity.get(), pageDotsSize.get(),
+                 pageDotsGap.get(), pageDotsMargin.get()})
         {
             if (editor->IsEditing()) return true;
         }
         for (const ColorEditor* editor : {
                  backgroundStart.get(), backgroundEnd.get(),
-                 filterTint.get(), outlineColor.get()})
+                 filterTint.get(), outlineColor.get(),
+                 pageDotsColorCustom.get()})
         {
             if (editor->IsEditing()) return true;
         }
@@ -1462,7 +1665,8 @@ struct DesktopPagePresenter::Impl
             highlightStrength.get(), highlightSize.get(),
             highlightAngle.get(), shadeStrength.get(), edgeHighlight.get(),
             filterStrength.get(), shadowStrength.get(), outlineWidth.get(),
-            outlineOpacity.get(),
+            outlineOpacity.get(), pageDotsSize.get(), pageDotsGap.get(),
+            pageDotsMargin.get(),
         };
     }
 
@@ -1470,7 +1674,7 @@ struct DesktopPagePresenter::Impl
     {
         return {
             backgroundStart.get(), backgroundEnd.get(), filterTint.get(),
-            outlineColor.get(),
+            outlineColor.get(), pageDotsColorCustom.get(),
         };
     }
 
@@ -1517,6 +1721,15 @@ struct DesktopPagePresenter::Impl
             {
                 PatchDesktop(snapshot.values.desktop);
                 desktopRevision = snapshot.domainRevisions.desktop;
+            }
+        }
+        if (newGeneration ||
+            snapshot.domainRevisions.general != generalRevision)
+        {
+            if (newGeneration || !desktopEditActive)
+            {
+                PatchPageDots(snapshot.values.general);
+                generalRevision = snapshot.domainRevisions.general;
             }
         }
         if (newGeneration ||
@@ -1579,6 +1792,10 @@ struct DesktopPagePresenter::Impl
 
         SetCardText(displayCard, "app.settings.desktop_icons",
             L"Desktop Icons");
+        SetCardText(pageDotsCard, "app.settings.page_dots",
+            L"Page indicator");
+        SetCardText(widgetGlobalCard, "app.settings.widget_global_settings",
+            L"Widget Global Settings");
         SetCardText(categoryLayoutCard, "settings.desktop.categoryLayout",
             L"Category tab layout");
         SetCardText(beautifyCard, "app.settings.icon_beautify",
@@ -1613,6 +1830,57 @@ struct DesktopPagePresenter::Impl
             L("app.settings.arrow_hide_all", L"Hide all"),
             L("app.settings.arrow_show_all", L"Show all"),
         }, std::max(0, shortcutArrow.SelectedIndex()));
+
+        pageDotsSize->SetLabel(
+            L("app.settings.page_dots_size", L"Dot size"));
+        pageDotsGap->SetLabel(
+            L("app.settings.page_dots_gap", L"Dot spacing"));
+        pageDotsColorRow.SetText(
+            L("app.settings.page_dots_color", L"Dot color"));
+        muxa::AutomationProperties::SetName(
+            pageDotsColor, pageDotsColorRow.label.Text());
+        SetComboItems(pageDotsColor, {
+            L("app.settings.page_dots_color_theme", L"Follow theme"),
+            L("app.settings.page_dots_color_white", L"White"),
+            L("app.settings.page_dots_color_black", L"Black"),
+            L("app.settings.page_dots_color_blue", L"Blue"),
+            L("app.settings.page_dots_color_custom", L"Custom"),
+        }, std::max(0, pageDotsColor.SelectedIndex()));
+        pageDotsColorCustom->SetLabel(
+            L("app.settings.page_dots_color_custom", L"Custom color"),
+            L("app.settings.cancel", L"Cancel"));
+        pageDotsVerticalRow.SetText(L(
+            "app.settings.page_dots_vertical", L"Vertical position"));
+        muxa::AutomationProperties::SetName(
+            pageDotsVertical, pageDotsVerticalRow.label.Text());
+        SetComboItems(pageDotsVertical, {
+            L("app.settings.page_dots_bottom", L"Bottom"),
+            L("app.settings.page_dots_top", L"Top"),
+        }, std::max(0, pageDotsVertical.SelectedIndex()));
+        pageDotsHorizontalRow.SetText(L(
+            "app.settings.page_dots_horizontal", L"Horizontal position"));
+        muxa::AutomationProperties::SetName(
+            pageDotsHorizontal, pageDotsHorizontalRow.label.Text());
+        SetComboItems(pageDotsHorizontal, {
+            L("app.settings.page_dots_center", L"Center"),
+            L("app.settings.page_dots_left", L"Left"),
+            L("app.settings.page_dots_right", L"Right"),
+        }, std::max(0, pageDotsHorizontal.SelectedIndex()));
+        pageDotsMargin->SetLabel(
+            L("app.settings.page_dots_margin", L"Margin"));
+        pageDotsShowNameRow.SetText(L(
+            "app.settings.page_dots_show_name", L"Show page name on hover"));
+        muxa::AutomationProperties::SetName(pageDotsShowName,
+            pageDotsShowNameRow.label.Text());
+        widgetFreePositionRow.SetText(L(
+            "app.settings.widget_free_position",
+            L"Free Position (No Grid Snap)"));
+        muxa::AutomationProperties::SetName(widgetFreePosition,
+            widgetFreePositionRow.label.Text());
+        widgetHideBorderRow.SetText(L(
+            "app.settings.widget_hide_border", L"Hide Widget Border"));
+        muxa::AutomationProperties::SetName(widgetHideBorder,
+            widgetHideBorderRow.label.Text());
 
         showCategoryTabCountsRow.SetText(L(
             "app.settings.category_show_count", L"Show item counts"));
@@ -1755,6 +2023,15 @@ struct DesktopPagePresenter::Impl
         if (id == "desktop.listFontSize") return listFontSize->number;
         if (id == "desktop.fontWeight") return itemFontWeight->number;
         if (id == "desktop.shortcutArrow") return shortcutArrow;
+        if (id == "pageDotsSize") return pageDotsSize->slider;
+        if (id == "pageDotsGap") return pageDotsGap->slider;
+        if (id == "pageDotsColor") return pageDotsColor;
+        if (id == "pageDotsVertical") return pageDotsVertical;
+        if (id == "pageDotsHorizontal") return pageDotsHorizontal;
+        if (id == "pageDotsMargin") return pageDotsMargin->slider;
+        if (id == "pageDotsShowName") return pageDotsShowName;
+        if (id == "widgetFreePosition") return widgetFreePosition;
+        if (id == "widgetHideBorder") return widgetHideBorder;
         if (id == "desktop.categoryCounts") return showCategoryTabCounts;
         if (id == "desktop.iconBeautify" ||
             id == "desktop.iconBeautify.preset")
@@ -1810,6 +2087,10 @@ struct DesktopPagePresenter::Impl
         itemFontSize->Close();
         listFontSize->Close();
         itemFontWeight->Close();
+        pageDotsSize->Close();
+        pageDotsGap->Close();
+        pageDotsMargin->Close();
+        pageDotsColorCustom->Close();
         backgroundStart->Close();
         backgroundOpacity->Close();
         backgroundEnd->Close();
@@ -1833,6 +2114,7 @@ struct DesktopPagePresenter::Impl
         backgroundEnd->Dismiss();
         filterTint->Dismiss();
         outlineColor->Dismiss();
+        pageDotsColorCustom->Dismiss();
     }
 
     void Close() noexcept
@@ -1854,6 +2136,12 @@ struct DesktopPagePresenter::Impl
             }
             shortcutArrow.SelectionChanged(shortcutArrowToken);
             showCategoryTabCounts.Toggled(showCountsToken);
+            pageDotsColor.SelectionChanged(pageDotsColorToken);
+            pageDotsVertical.SelectionChanged(pageDotsVerticalToken);
+            pageDotsHorizontal.SelectionChanged(pageDotsHorizontalToken);
+            pageDotsShowName.Toggled(pageDotsShowNameToken);
+            widgetFreePosition.Toggled(widgetFreePositionToken);
+            widgetHideBorder.Toggled(widgetHideBorderToken);
             beautifyPreset.SelectionChanged(beautifyPresetToken);
             beautifyMode.SelectionChanged(beautifyModeToken);
             gradientEnabled.Toggled(gradientEnabledToken);

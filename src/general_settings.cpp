@@ -43,6 +43,19 @@ namespace
         catch (...) { return false; }
     }
 
+    bool ReadFloatField(const std::string& text, const char* field, float& out)
+    {
+        std::string marker = "\"" + std::string(field) + "\"";
+        size_t p = text.find(marker);
+        if (p == std::string::npos) return false;
+        p = text.find(':', p);
+        if (p == std::string::npos) return false;
+        p = text.find_first_not_of(" \t\r\n", p + 1);
+        if (p == std::string::npos) return false;
+        try { out = std::stof(text.substr(p)); return true; }
+        catch (...) { return false; }
+    }
+
     bool ReadStringField(const std::string& text, const char* field, char* out, size_t outSize)
     {
         if (!out || outSize == 0) return false;
@@ -153,6 +166,34 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
     if (const auto* value = appearanceDocument.Find("collectionPopupAppearance"))
         if (!snowdesktop::DecodeSurfaceTheme(*value, settings.collectionPopupAppearance)) return false;
     ReadStringField(text, "language", settings.language, sizeof(settings.language));
+    float floatValue = 0.0f;
+    int intValue = 0;
+    if (ReadFloatField(text, "pageDotsGap", floatValue))
+        settings.pageDotsGap = std::clamp(floatValue, 1.0f, 30.0f);
+    if (ReadFloatField(text, "pageDotsActiveRadius", floatValue))
+        settings.pageDotsActiveRadius = std::clamp(floatValue, 2.0f, 16.0f);
+    if (ReadBoolField(text, "pageDotsShowName", val))
+        settings.pageDotsShowName = val;
+    if (ReadIntField(text, "pageDotsColorMode", intValue))
+        settings.pageDotsColorMode = std::clamp(intValue, 0, 4);
+    if (ReadIntField(text, "pageDotsColorR", intValue))
+        settings.pageDotsColorR = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsColorG", intValue))
+        settings.pageDotsColorG = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsColorB", intValue))
+        settings.pageDotsColorB = std::clamp(intValue, 0, 255);
+    if (ReadIntField(text, "pageDotsVertical", intValue))
+        settings.pageDotsVertical = std::clamp(intValue, 0, 1);
+    if (ReadIntField(text, "pageDotsHorizontal", intValue))
+        settings.pageDotsHorizontal = std::clamp(intValue, 0, 2);
+    if (ReadFloatField(text, "pageDotsMargin", floatValue))
+        settings.pageDotsMargin = std::clamp(floatValue, 8.0f, 100.0f);
+    if (ReadBoolField(text, "altWheelTurnPage", val))
+        settings.altWheelTurnPage = val;
+    if (ReadBoolField(text, "widgetFreePosition", val))
+        settings.widgetFreePosition = val;
+    if (ReadBoolField(text, "widgetHideBorder", val))
+        settings.widgetHideBorder = val;
     ReadIntField(text, "animationMode", settings.animationMode);
     ReadIntField(text, "popupAnimationEffect", settings.popupAnimationEffect);
     ReadIntField(text, "animationSpeed", settings.animationSpeed);
@@ -208,6 +249,24 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"widgetDeveloperToolsEnabled\": "
          << (settings.widgetDeveloperToolsEnabled ? "true" : "false")
          << ",\n";
+    file << "  \"pageDotsGap\": " << settings.pageDotsGap << ",\n";
+    file << "  \"pageDotsActiveRadius\": "
+         << settings.pageDotsActiveRadius << ",\n";
+    file << "  \"pageDotsShowName\": "
+         << (settings.pageDotsShowName ? "true" : "false") << ",\n";
+    file << "  \"pageDotsColorMode\": " << settings.pageDotsColorMode << ",\n";
+    file << "  \"pageDotsColorR\": " << settings.pageDotsColorR << ",\n";
+    file << "  \"pageDotsColorG\": " << settings.pageDotsColorG << ",\n";
+    file << "  \"pageDotsColorB\": " << settings.pageDotsColorB << ",\n";
+    file << "  \"pageDotsVertical\": " << settings.pageDotsVertical << ",\n";
+    file << "  \"pageDotsHorizontal\": " << settings.pageDotsHorizontal << ",\n";
+    file << "  \"pageDotsMargin\": " << settings.pageDotsMargin << ",\n";
+    file << "  \"altWheelTurnPage\": "
+         << (settings.altWheelTurnPage ? "true" : "false") << ",\n";
+    file << "  \"widgetFreePosition\": "
+         << (settings.widgetFreePosition ? "true" : "false") << ",\n";
+    file << "  \"widgetHideBorder\": "
+         << (settings.widgetHideBorder ? "true" : "false") << ",\n";
     file << "  \"language\": \"" << settings.language << "\"\n";
     file << "}\n";
     return true;

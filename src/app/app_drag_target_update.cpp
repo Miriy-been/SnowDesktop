@@ -609,6 +609,55 @@ bool DesktopApp::UpdateDragPageNavigation(POINT clientPoint)
         return false;
     }
 
+    // ── 图标拖拽悬浮到分页圆点：直接跳转到对应页面 ──
+    {
+        const int dragDotIndex = HitTestPageDotsIndicator(clientPoint);
+        if (dragDotIndex >= 0 && dragDotIndex <= MaxPageOffset() &&
+            dragDotIndex != pageOffset_)
+        {
+            SetPageNavHotEdgeHover(0);
+            navAutoFlipDir_ = 0;
+            navAutoFlipTick_ = 0;
+            const bool hasInternalItems = !dragSession_.Items().empty();
+            const bool dockEntryDrag =
+                dragSession_.SourceList().SourceSurfaceKind() ==
+                snowdesktop::slot_contract::SlotSurfaceKind::Dock;
+            const bool groupedEntryDrag =
+                dragSession_.SourceList().
+                    hasCollectionGroupEntries ||
+                dragSession_.SourceList().
+                    hasFileGroupEntries;
+            const POINT oldGroupOrigin{
+                dragGroupOriginX_, dragGroupOriginY_ };
+            pageOffset_ = dragDotIndex;
+            ApplyPageMapping();
+            if (hasInternalItems && !groupedEntryDrag && !dockEntryDrag)
+                MigrateSelectedItemsToLastMonitorPage();
+            LayoutItems();
+            RefreshPageNavHotEdgeHoverAt(clientPoint);
+            if (!dragSession_.IsActive() ||
+                (hasInternalItems && dragSession_.Items().empty()))
+            {
+                mouseDownHit_ = nullptr;
+                mouseDown_ = false;
+                return false;
+            }
+            InvalidateDragStaticScene();
+            if (hasInternalItems && !groupedEntryDrag && !dockEntryDrag)
+            {
+                UpdateDragGroupOrigin();
+                dragSession_.AdjustForGroupOriginChange(
+                    oldGroupOrigin,
+                    { dragGroupOriginX_, dragGroupOriginY_ });
+            }
+            // 页面迁移后 usedSlots 变化，预览缓存失效
+            cachedDropPreview_ = {};
+            cachedDropPreviewPoint_ = { -1, -1 };
+            SaveLayoutSlots();
+            return true;
+        }
+    }
+
     RECT prevEdge{}, nextEdge{};
     GetNavHotEdgeRects(prevEdge, nextEdge);
 
