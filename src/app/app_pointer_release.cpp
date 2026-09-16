@@ -1149,6 +1149,11 @@ void DesktopApp::OnLeftButtonUpAt(WPARAM wp, POINT upPoint)
                     gridPages_, fw.gridCell.pageId);
                 RECT fBase = GetGridRect(
                     gridPages_, fw.gridCell, fw.gridSpan);
+                // 自由摆放像素缩放：用真实尺寸计算工作区钳制。
+                if (fw.freeWidth > 0)
+                    fBase.right = fBase.left + fw.freeWidth;
+                if (fw.freeHeight > 0)
+                    fBase.bottom = fBase.top + fw.freeHeight;
                 if (fPage && fBase.right > fBase.left &&
                     fBase.bottom > fBase.top)
                 {
@@ -1188,10 +1193,33 @@ void DesktopApp::OnLeftButtonUpAt(WPARAM wp, POINT upPoint)
                 if (IsWidgetFreePositioned(
                         widgets_[mouseDownWidgetIndex_]))
                 {
-                    // 自由摆放：缩放不触发图标顺延，直接提交新跨度并
-                    // 保持自由偏移（bounds 由 LayoutItems 重算）。
-                    widgets_[mouseDownWidgetIndex_].gridSpan =
-                        widgetPreviewSpan_;
+                    // 自由摆放：像素级缩放提交。保存像素尺寸（覆盖网格
+                    // 跨度派生尺寸），并将网格跨度同步为覆盖该尺寸的
+                    // 最小跨度，供关闭自由摆放后回退网格时接近原尺寸。
+                    DesktopWidget& rw = widgets_[mouseDownWidgetIndex_];
+                    rw.freeWidth = std::max(1,
+                        static_cast<int>(rw.bounds.right - rw.bounds.left));
+                    rw.freeHeight = std::max(1,
+                        static_cast<int>(rw.bounds.bottom - rw.bounds.top));
+                    const GridPage* rPage = FindGridPage(
+                        gridPages_, rw.gridCell.pageId);
+                    if (rPage)
+                    {
+                        RECT unit = GetGridRect(
+                            gridPages_, rw.gridCell, GridSpan{1, 1});
+                        int unitW = std::max(1,
+                            static_cast<int>(unit.right - unit.left));
+                        int unitH = std::max(1,
+                            static_cast<int>(unit.bottom - unit.top));
+                        int pitchX = std::max(1, rPage->itemPitchWidth);
+                        int pitchY = std::max(1, rPage->itemPitchHeight);
+                        GridSpan span{
+                            1 + std::max(0, (rw.freeWidth - unitW + pitchX - 1) / pitchX),
+                            1 + std::max(0, (rw.freeHeight - unitH + pitchY - 1) / pitchY)};
+                        rw.gridSpan = ClampWidgetGridSpan(rw, span,
+                            rPage->columns - rw.gridCell.column,
+                            rPage->rows - rw.gridCell.row);
+                    }
                     LayoutItems();
                     SaveLayoutSlots();
                 }

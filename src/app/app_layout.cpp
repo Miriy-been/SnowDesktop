@@ -123,7 +123,7 @@ void DesktopApp::LoadLayoutSlots()
         snowdesktop::font_cu_rules::ResolveStoredSize(
             document.itemFontSizeCu, document.itemFontSize);
     itemFontSizeCu_ = savedItemFontSizeCu.value_or(
-        kDefaultItemFontSizeCu);
+        kDefaultItemTitleFontSizeCu);
 
     const std::optional<float> savedListFontSizeCu =
         snowdesktop::font_cu_rules::ResolveStoredSize(
@@ -411,6 +411,8 @@ void DesktopApp::LoadLayoutSlots()
         widget.freePosition = saved.freePosition;
         widget.freeOffsetX = saved.freeOffsetX;
         widget.freeOffsetY = saved.freeOffsetY;
+        widget.freeWidth = saved.freeWidth;
+        widget.freeHeight = saved.freeHeight;
         widget.showTitle = saved.showTitle.value_or(
             widget.type != DesktopWidgetType::LuaScript);
         widget.bottomBarHover = saved.bottomBarHover.value_or(
@@ -1020,6 +1022,8 @@ bool DesktopApp::SaveLayoutSlots()
              << ", \"freePosition\": " << (w.freePosition ? "true" : "false")
              << ", \"freeOffsetX\": " << w.freeOffsetX
              << ", \"freeOffsetY\": " << w.freeOffsetY
+             << ", \"freeWidth\": " << w.freeWidth
+             << ", \"freeHeight\": " << w.freeHeight
              << ", \"showTitle\": " << (w.showTitle ? "true" : "false")
              << ", \"bottomBarHover\": " << (w.bottomBarHover ? "true" : "false")
              << ", \"userRenamed\": " << (hasCustomTitle ? "true" : "false")

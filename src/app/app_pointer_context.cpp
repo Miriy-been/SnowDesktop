@@ -22,6 +22,10 @@ bool DesktopApp::HandlePageNavClick(POINT point)
 {
     if (gridPages_.empty()) return false;
     if (MaxPageOffset() <= 0) return false;   // 无溢出页时不处理
+    // 日常点击屏幕左右边缘不再翻页（易误触）；边缘翻页只在拖拽
+    // （组件/图标拖到边缘）时生效。
+    if (!dragSession_.IsActive() && widgetAction_ != WidgetAction::Move)
+        return false;
 
     const bool hasPrev = pageOffset_ > 0;
     const bool hasNext = pageOffset_ < MaxPageOffset();

@@ -119,7 +119,13 @@ void DesktopApp::RefreshPageNavHotEdgeHoverAt(POINT point)
 {
     lastMousePoint_ = point;
     int side = 0;
-    if (!desktopIconsHidden_ &&
+    // 屏幕边缘热区只在拖拽（组件/图标/外部拖放）时生效；
+    // 日常悬停不再触发翻页提示，避免误触。
+    const bool dragging =
+        widgetAction_ == WidgetAction::Move ||
+        dragSession_.IsActive() ||
+        dragDropController_.IsTransportActive();
+    if (dragging && !desktopIconsHidden_ &&
         (MaxPageOffset() > 0 || pageOffset_ > 0))
     {
         RECT previousEdge{};

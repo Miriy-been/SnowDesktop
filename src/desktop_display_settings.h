@@ -11,9 +11,9 @@ struct DesktopDisplaySettings
     bool dockEnabled = false;
     float iconSpacingScale = 1.0f;
     float itemIconSizeScale = kDefaultItemIconSizeScale;
-    float itemFontSizeCu = kDefaultItemFontSizeCu;
+    float itemFontSizeCu = kDefaultItemTitleFontSizeCu;
     float listItemFontSizeCu = kDefaultItemFontSizeCu;
-    int itemFontWeight = 600;
+    int itemFontWeight = 450;
     int shortcutArrowMode = 0;
     IconBeautifySettings iconBeautify;
 };

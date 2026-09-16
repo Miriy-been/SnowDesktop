@@ -760,6 +760,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
             InvalidateDragStaticScene();
             widgetDragOriginalCell_ = widgets_[wi].gridCell;
             widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetDragOriginalBounds_ = widgets_[wi].bounds;
             widgetPreviewCell_ = widgetDragOriginalCell_;
             widgetPreviewSpan_ = widgetDragOriginalSpan_;
             mouseDownWidgetIndex_ = wi;
@@ -776,6 +777,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
             InvalidateDragStaticScene();
             widgetDragOriginalCell_ = widgets_[wi].gridCell;
             widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetDragOriginalBounds_ = widgets_[wi].bounds;
             widgetPreviewCell_ = widgetDragOriginalCell_;
             widgetPreviewSpan_ = widgetDragOriginalSpan_;
             RECT bounds = widgets_[wi].bounds;
@@ -820,6 +822,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
             mouseDownPoint_ = pt;
             widgetDragOriginalCell_ = widgets_[wi].gridCell;
             widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetDragOriginalBounds_ = widgets_[wi].bounds;
             widgetPreviewCell_ = widgetDragOriginalCell_;
             widgetPreviewSpan_ = widgetDragOriginalSpan_;
             RECT armBounds = widgets_[wi].bounds;
@@ -903,6 +906,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
             InvalidateDragStaticScene();
             widgetDragOriginalCell_ = widgets_[wi].gridCell;
             widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetDragOriginalBounds_ = widgets_[wi].bounds;
             widgetPreviewCell_ = widgetDragOriginalCell_;
             widgetPreviewSpan_ = widgetDragOriginalSpan_;
             mouseDownWidgetIndex_ = wi;
@@ -918,6 +922,7 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
             InvalidateDragStaticScene();
             widgetDragOriginalCell_ = widgets_[wi].gridCell;
             widgetDragOriginalSpan_ = widgets_[wi].gridSpan;
+            widgetDragOriginalBounds_ = widgets_[wi].bounds;
             widgetPreviewCell_ = widgetDragOriginalCell_;
             widgetPreviewSpan_ = widgetDragOriginalSpan_;
             RECT bounds = widgets_[wi].bounds;

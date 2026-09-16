@@ -376,6 +376,10 @@ struct DockPagePresenter::Impl
     muxc::ToggleSwitch taskbarAcrylicToggle{nullptr};
     muxc::RadioButtons windowsSystemThemeChoices{nullptr};
     muxc::InfoBar taskbarRuntimeStatus{nullptr};
+    muxc::ToggleSwitch taskbarTerminateOccupierToggle{nullptr};
+    SettingRow taskbarTerminateOccupierRow;
+    mux::DispatcherTimer taskbarStatusTimer{nullptr};
+    winrt::event_token taskbarStatusTickToken{};
 
     SettingRow dockEnabledRow;
     SettingRow positionRow;
@@ -444,6 +448,7 @@ struct DockPagePresenter::Impl
     winrt::event_token showOnlyWhenSummonedToken{};
     winrt::event_token taskbarAutoHideToken{};
     winrt::event_token taskbarAlignmentToken{};
+    winrt::event_token taskbarTerminateOccupierToken{};
     winrt::event_token restartExplorerToken{};
     winrt::event_token taskbarThemeToken{};
     winrt::event_token taskbarContentThemeToken{};
@@ -603,10 +608,26 @@ struct DockPagePresenter::Impl
         taskbarRuntimeStatus = muxc::InfoBar{};
         taskbarRuntimeStatus.IsClosable(false);
         taskbarRuntimeStatus.IsOpen(false);
+        taskbarStatusTimer = mux::DispatcherTimer{};
+        taskbarStatusTimer.Interval(std::chrono::milliseconds(2000));
+        taskbarStatusTickToken = taskbarStatusTimer.Tick(
+            [this](const auto&, const auto&) {
+                if (!closed && active)
+                    RefreshTaskbarRuntimeStatus();
+            });
+        taskbarTerminateOccupierToggle = muxc::ToggleSwitch{};
+        taskbarTerminateOccupierToggle.HorizontalAlignment(
+            mux::HorizontalAlignment::Right);
+        taskbarTerminateOccupierRow.Initialize(
+            taskbarTerminateOccupierToggle);
+        taskbarTerminateOccupierRow.SetControlAlignment(
+            mux::HorizontalAlignment::Right);
         taskbarAppearanceCard.content.Children().Append(taskbarThemeRow.root);
         taskbarAppearanceCard.content.Children().Append(
             taskbarContentThemeRow.root);
         taskbarAppearanceCard.content.Children().Append(taskbarRuntimeStatus);
+        taskbarAppearanceCard.content.Children().Append(
+            taskbarTerminateOccupierRow.root);
 
         taskbarCustomAppearance = muxc::StackPanel{};
         taskbarCustomAppearance.Spacing(12.0);
@@ -1024,6 +1045,14 @@ struct DockPagePresenter::Impl
                 EmitDock(SettingsUpdateMode::PreviewAndCommit,
                     [value](DockSettings& settings) {
                         settings.showWindowsButton = value;
+                    });
+            });
+        taskbarTerminateOccupierToken = taskbarTerminateOccupierToggle.Toggled(
+            [this](const auto&, const auto&) {
+                const bool value = taskbarTerminateOccupierToggle.IsOn();
+                EmitDock(SettingsUpdateMode::PreviewAndCommit,
+                    [value](DockSettings& settings) {
+                        settings.systemTaskbarTerminateOccupier = value;
                     });
             });
         showFrequentItemsToken = showFrequentItemsToggle.Toggled(
@@ -1594,6 +1623,8 @@ struct DockPagePresenter::Impl
                     settings.showOnlyWhenSummoned,
                     settings.allowDesktopContentOverlap));
         showOnlyWhenSummonedToggle.IsOn(settings.showOnlyWhenSummoned);
+        taskbarTerminateOccupierToggle.IsOn(
+            settings.systemTaskbarTerminateOccupier);
         PatchSystemTaskbarControls(settings);
         windowsSystemThemeValue =
             IsWindowsSystemLightThemeEnabled() ? 0 : 1;
@@ -1747,7 +1778,20 @@ struct DockPagePresenter::Impl
             muxc::InfoBarSeverity::Informational;
         if (taskbarHookRequired)
         {
-            switch (GetSystemTaskbarBackdropRuntimeState())
+            const SystemTaskbarBackdropStatus backdropStatus =
+                GetSystemTaskbarBackdropStatus();
+            // The competing TAP is detected by process, not by hook status:
+            // TranslucentTB may start after our hook already applied, and it
+            // also keeps the taskbar busy when our injection was refused.
+            if (IsTranslucentTBProcessRunning())
+            {
+                text = L("app.settings.taskbar_occupied",
+                    L"The taskbar appearance is being controlled by "
+                    L"another program (such as TranslucentTB). Close it "
+                    L"and try again.");
+                severity = muxc::InfoBarSeverity::Warning;
+            }
+            else switch (backdropStatus.state)
             {
             case SystemTaskbarBackdropRuntimeState::Loading:
                 text = L("app.settings.taskbar_connecting",
@@ -1759,9 +1803,20 @@ struct DockPagePresenter::Impl
                 severity = muxc::InfoBarSeverity::Warning;
                 break;
             case SystemTaskbarBackdropRuntimeState::Failed:
-                text = L("app.settings.taskbar_connect_failed",
-                    L"Failed to connect to taskbar personalization.");
-                severity = muxc::InfoBarSeverity::Error;
+                if (backdropStatus.lastError == ERROR_ALREADY_EXISTS)
+                {
+                    text = L("app.settings.taskbar_occupied",
+                        L"The taskbar appearance is being controlled by "
+                        L"another program (such as TranslucentTB). Close it "
+                        L"and try again.");
+                    severity = muxc::InfoBarSeverity::Warning;
+                }
+                else
+                {
+                    text = L("app.settings.taskbar_connect_failed",
+                        L"Failed to connect to taskbar personalization.");
+                    severity = muxc::InfoBarSeverity::Error;
+                }
                 break;
             default:
                 break;
@@ -2276,6 +2331,17 @@ struct DockPagePresenter::Impl
         muxa::AutomationProperties::SetName(
             taskbarThemeCombo, taskbarThemeRow.label.Text());
         ReplaceTaskbarThemeItems(taskbarThemeCombo);
+        taskbarTerminateOccupierRow.SetText(
+            L("app.settings.taskbar_terminate_occupier",
+                L"Terminate the Occupying Program"),
+            L("app.settings.taskbar_terminate_occupier_hint",
+                L"When another program (such as TranslucentTB) is "
+                L"controlling the taskbar, end it automatically so this "
+                L"appearance can be applied. The program will not run "
+                L"together with this app."));
+        muxa::AutomationProperties::SetName(
+            taskbarTerminateOccupierToggle,
+            taskbarTerminateOccupierRow.label.Text());
         taskbarContentThemeRow.SetText(L(
             "app.settings.taskbar_foreground_color",
             L"Taskbar Icon and Text Color"));
@@ -2577,6 +2643,9 @@ struct DockPagePresenter::Impl
             showOnlyWhenSummonedToggle.Toggled(showOnlyWhenSummonedToken);
             taskbarAutoHideToggle.Toggled(taskbarAutoHideToken);
             taskbarAlignmentChoices.SelectionChanged(taskbarAlignmentToken);
+            taskbarTerminateOccupierToggle.Toggled(
+                taskbarTerminateOccupierToken);
+            taskbarStatusTimer.Stop();
             windowsSystemThemeChoices.SelectionChanged(
                 windowsSystemThemeToken);
             restartExplorerButton.Click(restartExplorerToken);
@@ -2670,6 +2739,8 @@ void DockPagePresenter::ActivateTaskbar() noexcept
     impl_->taskbarInputReady = false;
     impl_->active = true;
     impl_->RefreshTaskbarRuntimeState();
+    if (impl_->taskbarStatusTimer)
+        impl_->taskbarStatusTimer.Start();
 }
 
 void DockPagePresenter::Deactivate() noexcept
@@ -2680,6 +2751,8 @@ void DockPagePresenter::Deactivate() noexcept
     impl_->CommitContinuousEdits();
     impl_->taskbarInputReady = false;
     impl_->active = false;
+    if (impl_->taskbarStatusTimer)
+        impl_->taskbarStatusTimer.Stop();
 }
 
 mux::FrameworkElement DockPagePresenter::FocusTarget(

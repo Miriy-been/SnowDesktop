@@ -739,6 +739,10 @@ add_executable(SnowDesktopLauncher WIN32
 target_compile_features(SnowDesktopLauncher PRIVATE cxx_std_20)
 target_include_directories(SnowDesktopLauncher PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(SnowDesktopLauncher PRIVATE bcrypt shell32 user32)
+# Launcher links no NuGet packages; MSBuild 17.7's legacy ResolveNuGetPackageAssets
+# would otherwise fail with "Sequence contains no elements" (empty moniker).
+set_property(TARGET SnowDesktopLauncher PROPERTY
+    VS_GLOBAL_ResolveNuGetPackages "false")
 if (MSVC)
     set_property(TARGET SnowDesktopLauncher PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -972,6 +976,10 @@ if (BUILD_TESTING)
         endif()
 
         add_executable(${TEST_TARGET} ${SNOW_TEST_SOURCES})
+        # Test executables consume no NuGet packages; MSBuild 17.7's legacy
+        # ResolveNuGetPackageAssets would otherwise fail on the empty moniker.
+        set_property(TARGET ${TEST_TARGET} PROPERTY
+            VS_GLOBAL_ResolveNuGetPackages "false")
         # Keep every CTest binary, symbol file, and import library outside the
         # runnable product root. Generator expressions prevent Visual Studio
         # from appending a second configuration directory.

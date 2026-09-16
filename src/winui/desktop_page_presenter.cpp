@@ -806,7 +806,7 @@ struct DesktopPagePresenter::Impl
             kMinimumItemFontSizeCu, kMaximumItemFontSizeCu, 0.5, 1,
             [](DesktopDisplaySettings& settings, double value) {
                 settings.itemFontSizeCu = static_cast<float>(value);
-            }, 16.0);
+            }, kDefaultItemTitleFontSizeCu);
         listFontSize = MakeDesktopNumber(
             kMinimumItemFontSizeCu, kMaximumItemFontSizeCu, 0.5, 1,
             [](DesktopDisplaySettings& settings, double value) {
@@ -815,7 +815,7 @@ struct DesktopPagePresenter::Impl
         itemFontWeight = MakeDesktopNumber(100.0, 900.0, 50.0, 0,
             [](DesktopDisplaySettings& settings, double value) {
                 settings.itemFontWeight = static_cast<int>(std::lround(value));
-            }, 600.0);
+            }, 450.0);
         iconSpacing->SetUnit(L"%");
         iconSize->SetUnit(L"%");
         itemFontSize->SetUnit(L"cu");

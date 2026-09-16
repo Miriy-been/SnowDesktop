@@ -602,14 +602,7 @@ void DesktopApp::PreviewIconSpacing(float value)
             widget.cellScale = GetGridPageCuScale(*page);
         widget.bounds = GetGridRect(
             gridPages_, widget.gridCell, widget.gridSpan);
-        // 自由摆放模式：在网格单元位置上叠加像素偏移
-        if (IsWidgetFreePositioned(widget))
-        {
-            widget.bounds.left   += widget.freeOffsetX;
-            widget.bounds.right  += widget.freeOffsetX;
-            widget.bounds.top    += widget.freeOffsetY;
-            widget.bounds.bottom += widget.freeOffsetY;
-        }
+        ApplyWidgetFreePlacementTransform(widget);
     }
     for (auto& container : containers_)
     {
@@ -679,14 +672,7 @@ void DesktopApp::PreviewItemIconSize(float value)
             widget.cellScale = GetGridPageCuScale(*page);
         widget.bounds = GetGridRect(
             gridPages_, widget.gridCell, widget.gridSpan);
-        // 自由摆放模式：在网格单元位置上叠加像素偏移
-        if (IsWidgetFreePositioned(widget))
-        {
-            widget.bounds.left   += widget.freeOffsetX;
-            widget.bounds.right  += widget.freeOffsetX;
-            widget.bounds.top    += widget.freeOffsetY;
-            widget.bounds.bottom += widget.freeOffsetY;
-        }
+        ApplyWidgetFreePlacementTransform(widget);
     }
     if (!SynchronizeDockContainerAreas())
         LayoutItems();

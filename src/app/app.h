@@ -1373,6 +1373,8 @@ private:
     bool IsGroupedWidget(const DesktopWidget& widget) const;
     /** @brief 组件是否处于自由摆放（单个 freePosition 或全局开关）。 */
     bool IsWidgetFreePositioned(const DesktopWidget& widget) const;
+    /** @brief 在网格位 bounds 上叠加自由摆放的像素偏移与像素缩放尺寸。 */
+    void ApplyWidgetFreePlacementTransform(DesktopWidget& widget) const;
     /** @brief 组件是否占用桌面网格格位。被分组收纳的不占；自由摆放的组件
      *         视觉已移走，不再占用其原型网格格位，便于图标落到那里。 */
     bool WidgetOccupiesGridSlots(const DesktopWidget& widget) const;
@@ -3467,6 +3469,7 @@ private:
     std::wstring dockWindowPreviewKey_;
     RECT dockWindowPreviewAnchorScreen_{};
     DWORD systemTaskbarBackdropRefreshTick_ = 0;
+    bool systemTaskbarCompetingTapBackOff_ = false;
     DWORD systemTaskbarWindowScanTick_ = 0;
     DWORD systemTaskbarBackdropForegroundTick_ = 0;
     HWINEVENTHOOK dockForegroundEventHook_ = nullptr;
@@ -3539,11 +3542,11 @@ private:
     bool iconSpacingPreviewActive_ = false;
     float itemIconSizeScale_ = kDefaultItemIconSizeScale;
     bool itemIconSizePreviewActive_ = false;
-    float itemFontSizeCu_ = kDefaultItemFontSizeCu;
+    float itemFontSizeCu_ = kDefaultItemTitleFontSizeCu;
     bool itemFontSizePreviewActive_ = false;
     float listItemFontSizeCu_ = kDefaultItemFontSizeCu;
     bool listItemFontSizePreviewActive_ = false;
-    DWRITE_FONT_WEIGHT itemFontWeight_ = DWRITE_FONT_WEIGHT_SEMI_BOLD;
+    DWRITE_FONT_WEIGHT itemFontWeight_ = static_cast<DWRITE_FONT_WEIGHT>(450);
     bool itemFontWeightPreviewActive_ = false;
     int shortcutArrowMode_ = 0;
     snowdesktop::IconBeautifySettings iconBeautifySettings_{};
@@ -3846,6 +3849,7 @@ private:
     int detailColumnResizeHeaderWidth_ = 1;
     GridCell widgetDragOriginalCell_{};
     GridSpan widgetDragOriginalSpan_{};
+    RECT widgetDragOriginalBounds_{}; ///< 缩放起点时的组件 bounds（含自由偏移）
     GridCell widgetPreviewCell_{};
     GridSpan widgetPreviewSpan_{};
     POINT widgetPreviewOffset_{}; ///< 自由摆放拖拽时的像素偏移预览

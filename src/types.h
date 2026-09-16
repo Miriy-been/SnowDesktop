@@ -516,6 +516,9 @@ struct DesktopWidget
     bool freePosition = false;
     int freeOffsetX = 0;
     int freeOffsetY = 0;
+    // 自由摆放像素缩放：>0 时覆盖 gridSpan 派生的尺寸（物理像素）。
+    int freeWidth = 0;
+    int freeHeight = 0;
     bool userRenamed = false; // Compatibility mirror of !customTitle.empty().
     bool dateHeaders = false;
     bool showFileCategories = false;

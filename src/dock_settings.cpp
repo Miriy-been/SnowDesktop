@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <tlhelp32.h>
 
 #include <algorithm>
 #include <array>
@@ -899,9 +900,114 @@ SystemTaskbarBackdropRuntimeState GetSystemTaskbarBackdropRuntimeState()
     return GetTaskbarBackdropController().RuntimeState();
 }
 
+SystemTaskbarBackdropStatus GetSystemTaskbarBackdropStatus()
+{
+    // The settings UI runs in a separate process, so the controller's mapped
+    // state is not open here. Peek at the shared state read-only instead;
+    // the mapping lives in the current session and is created by the host
+    // the first time it pushes a taskbar appearance.
+    SystemTaskbarBackdropStatus result;
+    const HANDLE mapping = OpenFileMappingW(FILE_MAP_READ, FALSE,
+        snowdesktop::taskbar_hook::kSharedStateName);
+    if (!mapping)
+        return result;
+    const auto* state = static_cast<const snowdesktop::taskbar_hook::SharedState*>(
+        MapViewOfFile(mapping, FILE_MAP_READ, 0, 0,
+            sizeof(snowdesktop::taskbar_hook::SharedState)));
+    if (state)
+    {
+        // The writer bumps generation to odd while mutating and back to even
+        // when the snapshot is complete; retry until a stable even snapshot.
+        for (int attempt = 0; attempt < 4; ++attempt)
+        {
+            const LONG generationBefore = state->generation;
+            const LONG enabled = state->enabled;
+            const LONG status = state->status;
+            const LONG lastError = state->lastError;
+            const LONG generationAfter = state->generation;
+            if (generationBefore != generationAfter ||
+                (generationBefore & 1) != 0)
+                continue;
+            if (!enabled)
+                result.state = SystemTaskbarBackdropRuntimeState::Disabled;
+            else if (!IsWindows11OrGreater())
+                result.state = SystemTaskbarBackdropRuntimeState::Unsupported;
+            else if (status >= snowdesktop::taskbar_hook::kStatusApplied)
+                result.state = SystemTaskbarBackdropRuntimeState::Active;
+            else if (status < snowdesktop::taskbar_hook::kStatusIdle)
+            {
+                result.state = SystemTaskbarBackdropRuntimeState::Failed;
+                result.lastError = static_cast<DWORD>(lastError);
+            }
+            else
+                result.state = SystemTaskbarBackdropRuntimeState::Loading;
+            break;
+        }
+        UnmapViewOfFile(state);
+    }
+    CloseHandle(mapping);
+    return result;
+}
+
 void NotifySystemTaskbarCreated()
 {
     GetTaskbarBackdropController().NotifyTaskbarCreated();
+}
+
+bool IsTranslucentTBProcessRunning()
+{
+    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool running = false;
+    if (Process32FirstW(snapshot, &entry))
+    {
+        do
+        {
+            if (_wcsicmp(entry.szExeFile, L"TranslucentTB.exe") == 0)
+            {
+                running = true;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return running;
+}
+
+bool TerminateTranslucentTBProcesses()
+{
+    // Used only when the user explicitly enabled "terminate the occupier".
+    // Killing the TranslucentTB process makes its Explorer-side TAP restore
+    // the native taskbar and go dormant, which lets our own TAP take over.
+    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool terminatedAny = false;
+    if (Process32FirstW(snapshot, &entry))
+    {
+        do
+        {
+            if (_wcsicmp(entry.szExeFile, L"TranslucentTB.exe") != 0)
+                continue;
+            if (HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE,
+                FALSE, entry.th32ProcessID))
+            {
+                if (TerminateProcess(process, 0))
+                {
+                    terminatedAny = true;
+                    WaitForSingleObject(process, 5000);
+                }
+                CloseHandle(process);
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return terminatedAny;
 }
 
 bool ApplySystemTaskbarBackdrop(bool hookEnabled, bool defaultEnabled,
@@ -1033,6 +1139,8 @@ bool LoadDockSettings(const wchar_t* path, DockSettings& settings)
         settings.systemTaskbarBackdropEnabled);
     ReadBoolField(text, "systemTaskbarFollowPersonalization",
         settings.systemTaskbarFollowPersonalization);
+    ReadBoolField(text, "systemTaskbarTerminateOccupier",
+        settings.systemTaskbarTerminateOccupier);
     PersonalizationSettings& taskbarStyle = settings.systemTaskbarAppearance;
     if (ReadDoubleField(text, "taskbarBackgroundR", value))
         taskbarStyle.widgetBgR = static_cast<float>(value);
@@ -1133,6 +1241,8 @@ bool SaveDockSettings(const wchar_t* path, const DockSettings& settings)
          << (settings.systemTaskbarBackdropEnabled ? "true" : "false") << ",\n";
     file << "  \"systemTaskbarFollowPersonalization\": "
          << (settings.systemTaskbarFollowPersonalization ? "true" : "false") << ",\n";
+    file << "  \"systemTaskbarTerminateOccupier\": "
+         << (settings.systemTaskbarTerminateOccupier ? "true" : "false") << ",\n";
     file << "  \"taskbarBackgroundR\": " << taskbarStyle.widgetBgR << ",\n";
     file << "  \"taskbarBackgroundG\": " << taskbarStyle.widgetBgG << ",\n";
     file << "  \"taskbarBackgroundB\": " << taskbarStyle.widgetBgB << ",\n";

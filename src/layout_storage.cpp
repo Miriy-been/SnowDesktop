@@ -437,6 +437,10 @@ bool DecodeWidgets(const JsonValue& root, Document& document,
                 path + ".freeOffsetX", record.freeOffsetX, error) ||
             !ReadOptionalInteger(object, "freeOffsetY",
                 path + ".freeOffsetY", record.freeOffsetY, error) ||
+            !ReadOptionalInteger(object, "freeWidth",
+                path + ".freeWidth", record.freeWidth, error) ||
+            !ReadOptionalInteger(object, "freeHeight",
+                path + ".freeHeight", record.freeHeight, error) ||
             !ReadStringArray(object, "items", path + ".items",
                 record.items, error) ||
             !ReadStringArray(object, "childWidgets",

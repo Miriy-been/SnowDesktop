@@ -111,6 +111,8 @@ struct DockSettings
     int systemTaskbarAlignment = 1; // 0=靠左, 1=居中
     bool systemTaskbarBackdropEnabled = false;
     bool systemTaskbarFollowPersonalization = true;
+    // 启用后检测到 TranslucentTB 等占用任务栏的程序时自动结束它，而不是让位。
+    bool systemTaskbarTerminateOccupier = false;
     int systemTaskbarContentTheme = -1; // -1=跟随全局, 0=浅色, 1=深色
     PersonalizationSettings systemTaskbarAppearance =
         PersonalizationSettings::AcrylicDarkPreset();
@@ -156,6 +158,19 @@ bool RequestWindowsSystemLightThemeEnabled(bool enabled);
 bool RestartWindowsExplorer();
 PersonalizationSettings MakeTransparentTaskbarAppearance();
 SystemTaskbarBackdropRuntimeState GetSystemTaskbarBackdropRuntimeState();
+
+/** 跨进程只读查询任务栏背景钩子的实时状态（供独立的设置进程使用）。 */
+struct SystemTaskbarBackdropStatus
+{
+    SystemTaskbarBackdropRuntimeState state =
+        SystemTaskbarBackdropRuntimeState::Disabled;
+    DWORD lastError = ERROR_SUCCESS;
+};
+SystemTaskbarBackdropStatus GetSystemTaskbarBackdropStatus();
+/** 是否有 TranslucentTB 进程正在运行（它会用 TAP 抢占任务栏外观）。 */
+bool IsTranslucentTBProcessRunning();
+/** 结束所有 TranslucentTB 进程（仅在用户显式启用"自动结束占用程序"时调用）。 */
+bool TerminateTranslucentTBProcesses();
 void NotifySystemTaskbarCreated();
 bool ApplySystemTaskbarBackdrop(bool hookEnabled, bool defaultEnabled,
     const PersonalizationSettings& defaultAppearance,

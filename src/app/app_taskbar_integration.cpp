@@ -414,6 +414,39 @@ bool DesktopApp::RefreshSystemTaskbarAppearance(
         return true;
     }
 
+    // TranslucentTB injects its own taskbar TAP; two TAPs would fight over
+    // the same visual tree. When the user enabled "terminate the occupier",
+    // kill the competitor and take over on a later tick. Otherwise back off:
+    // restore the native look and keep our hook dormant so the competitor
+    // owns the taskbar. Shared-state status is left untouched, so when the
+    // competitor exits a plain apply message re-enables the installed hook.
+    if (IsTranslucentTBProcessRunning())
+    {
+        if (dockSettings_.systemTaskbarTerminateOccupier)
+        {
+            systemTaskbarCompetingTapBackOff_ = false;
+            if (TerminateTranslucentTBProcesses())
+            {
+                // Give the competitor's TAP a moment to restore the taskbar;
+                // the next refresh tick re-applies our own appearance.
+                systemTaskbarBackdropRefreshTick_ = GetTickCount();
+                return true;
+            }
+        }
+        else
+        {
+            if (!systemTaskbarCompetingTapBackOff_)
+            {
+                systemTaskbarCompetingTapBackOff_ = true;
+                ApplySystemTaskbarBackdrop(false, false,
+                    ResolveSystemTaskbarAppearance(dockSettings_));
+            }
+            systemTaskbarBackdropRefreshTick_ = GetTickCount();
+            return true;
+        }
+    }
+    systemTaskbarCompetingTapBackOff_ = false;
+
     const DWORD changedTick = systemTaskbarWindowStateChangedTick_.load();
     if (forceWindowScan || changedTick != systemTaskbarWindowStateObservedTick_)
     {

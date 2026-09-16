@@ -478,11 +478,16 @@ void DesktopApp::ApplyDesktopWidgetCompositionDragOffset(
     if (!item.visual) return;
     // 拖拽跟随：在 flush 计算的基准位置上叠加拖拽位移。
     // 表面内容像素级不变，仅移动视觉（v1.0.3 平移幽灵的等价实现）。
-    if (FAILED(item.visual->SetOffsetX(
-            static_cast<float>(item.bounds.left + offsetX))))
+    // 基准必须与 flush 一致使用 WidgetSurfaceOrigin（含边框 overdraw），
+    // 否则拖拽中的视觉与释放后的最终位置相差 overdraw 像素，表现为
+    // 释放时向左上跳动。
+    if (FAILED(item.visual->SetOffsetX(static_cast<float>(
+            snowdesktop::widget_composition_layer_rules::
+                WidgetSurfaceOrigin(item.bounds.left) + offsetX))))
         return;
-    if (FAILED(item.visual->SetOffsetY(
-            static_cast<float>(item.bounds.top + offsetY))))
+    if (FAILED(item.visual->SetOffsetY(static_cast<float>(
+            snowdesktop::widget_composition_layer_rules::
+                WidgetSurfaceOrigin(item.bounds.top) + offsetY))))
         return;
     FlushPendingCompositionCommit();
 }

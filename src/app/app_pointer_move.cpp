@@ -699,43 +699,62 @@ void DesktopApp::OnMouseMoveAt(
     if (widgetAction_ == WidgetAction::Resize && mouseDownWidgetIndex_ < widgets_.size())
     {
         extern inline const GridPage* FindGridPage(const std::vector<GridPage>&, const std::wstring&);
-        const auto& widget = widgets_[mouseDownWidgetIndex_];
-        const GridPage* page = FindGridPage(gridPages_, widget.gridCell.pageId);
-        if (page)
+        DesktopWidget& dragged = widgets_[mouseDownWidgetIndex_];
+        RECT previewBounds{};
+        if (IsWidgetFreePositioned(dragged))
         {
-            int stepX = std::max(1, page->itemPitchWidth);
-            int stepY = std::max(1, page->itemPitchHeight);
-            int dCol = static_cast<int>(std::round(static_cast<double>(current.x - mouseDownPoint_.x) / static_cast<double>(stepX)));
-            int dRow = static_cast<int>(std::round(static_cast<double>(current.y - mouseDownPoint_.y) / static_cast<double>(stepY)));
-
-            GridCell cell = widgetDragOriginalCell_;
-            GridSpan span = widgetDragOriginalSpan_;
-            span.columns += dCol;
-            span.rows += dRow;
-            span = ClampWidgetGridSpan(widget, span,
-                page->columns - cell.column, page->rows - cell.row);
-
-            widgetPreviewCell_ = cell;
-            widgetPreviewSpan_ = span;
-        }
-        // 缩放跟随：表面按新 bounds 重建（尺寸变化需要重绘内容），
-        // 自由摆放的组件保持其自由偏移，避免缩放时跳回网格位置。
-        {
-            DesktopWidget& dragged = widgets_[mouseDownWidgetIndex_];
-            RECT previewBounds = GetGridRect(
-                gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
-            if (IsWidgetFreePositioned(dragged))
+            // 自由摆放：像素级自由缩放，不按网格跨度步进。
+            const GridPage* page = FindGridPage(gridPages_, dragged.gridCell.pageId);
+            int newW = (widgetDragOriginalBounds_.right - widgetDragOriginalBounds_.left) +
+                (current.x - mouseDownPoint_.x);
+            int newH = (widgetDragOriginalBounds_.bottom - widgetDragOriginalBounds_.top) +
+                (current.y - mouseDownPoint_.y);
+            // 最小尺寸不小于 minGridSpan 对应的网格尺寸；最大不超页面工作区。
+            RECT minRect = GetGridRect(
+                gridPages_, widgetDragOriginalCell_, dragged.minGridSpan);
+            newW = std::max(newW, static_cast<int>(minRect.right - minRect.left));
+            newH = std::max(newH, static_cast<int>(minRect.bottom - minRect.top));
+            if (page)
             {
-                previewBounds.left += dragged.freeOffsetX;
-                previewBounds.right += dragged.freeOffsetX;
-                previewBounds.top += dragged.freeOffsetY;
-                previewBounds.bottom += dragged.freeOffsetY;
+                newW = std::min(newW,
+                    static_cast<int>(page->workArea.right - widgetDragOriginalBounds_.left));
+                newH = std::min(newH,
+                    static_cast<int>(page->workArea.bottom - widgetDragOriginalBounds_.top));
             }
-            dragged.bounds = previewBounds;
-            // 加入合成重建队列，让组件表面按新尺寸重建（实时缩放）。
-            pendingDesktopWidgetCompositions_.insert(dragged.id);
-            InvalidateRect(hwnd_, nullptr, FALSE);
+            newW = std::max(newW, 1);
+            newH = std::max(newH, 1);
+            previewBounds = widgetDragOriginalBounds_;
+            previewBounds.right = previewBounds.left + newW;
+            previewBounds.bottom = previewBounds.top + newH;
         }
+        else
+        {
+            const GridPage* page = FindGridPage(gridPages_, dragged.gridCell.pageId);
+            if (page)
+            {
+                int stepX = std::max(1, page->itemPitchWidth);
+                int stepY = std::max(1, page->itemPitchHeight);
+                int dCol = static_cast<int>(std::round(static_cast<double>(current.x - mouseDownPoint_.x) / static_cast<double>(stepX)));
+                int dRow = static_cast<int>(std::round(static_cast<double>(current.y - mouseDownPoint_.y) / static_cast<double>(stepY)));
+
+                GridCell cell = widgetDragOriginalCell_;
+                GridSpan span = widgetDragOriginalSpan_;
+                span.columns += dCol;
+                span.rows += dRow;
+                span = ClampWidgetGridSpan(dragged, span,
+                    page->columns - cell.column, page->rows - cell.row);
+
+                widgetPreviewCell_ = cell;
+                widgetPreviewSpan_ = span;
+            }
+            previewBounds = GetGridRect(
+                gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
+        }
+        // 缩放跟随：表面按新 bounds 重建（尺寸变化需要重绘内容）。
+        dragged.bounds = previewBounds;
+        // 加入合成重建队列，让组件表面按新尺寸重建（实时缩放）。
+        pendingDesktopWidgetCompositions_.insert(dragged.id);
+        InvalidateRect(hwnd_, nullptr, FALSE);
         ShowDragHintWindow(current, _LW("core.drag.resize_widget"));
         return;
     }

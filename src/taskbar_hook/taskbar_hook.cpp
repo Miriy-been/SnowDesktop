@@ -15,6 +15,7 @@
 #include <d2d1effects.h>
 #include <ocidl.h>
 #include <servprov.h>
+#include <tlhelp32.h>
 #include <windows.graphics.effects.interop.h>
 #include <windows.ui.xaml.hosting.desktopwindowxamlsource.h>
 #include <xamlOM.h>
@@ -1319,6 +1320,33 @@ public:
 
 using InitializeXamlDiagnosticsExProc = decltype(&InitializeXamlDiagnosticsEx);
 
+// ExplorerTAP.dll stays loaded in Explorer after the TranslucentTB process
+// exits (XAML Diagnostics pins the module), but it stops enforcing any
+// appearance once its process is gone. Only a live TranslucentTB process
+// actively fights for the taskbar visual tree.
+bool IsTranslucentTBProcessRunning()
+{
+    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool running = false;
+    if (Process32FirstW(snapshot, &entry))
+    {
+        do
+        {
+            if (_wcsicmp(entry.szExeFile, L"TranslucentTB.exe") == 0)
+            {
+                running = true;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return running;
+}
+
 DWORD WINAPI InstallTaskbarTap(void*)
 {
     HMODULE selfReference = nullptr;
@@ -1339,9 +1367,13 @@ DWORD WINAPI InstallTaskbarTap(void*)
     SetHookStatus(kStatusInjecting);
 
     // XAML Diagnostics can only own a taskbar visual tree once. Refuse to
-    // compete with an already loaded TranslucentTB TAP; the settings UI tells
-    // the user not to run both tools at the same time.
-    if (GetModuleHandleW(L"ExplorerTAP.dll"))
+    // compete while the TranslucentTB process is running and actively
+    // enforcing its own appearance through its TAP. A leftover
+    // ExplorerTAP.dll that stays loaded after its process exited is dormant
+    // (TranslucentTB restores the taskbar and stops enforcing when its
+    // process dies), so it is safe to take over in that case.
+    if (GetModuleHandleW(L"ExplorerTAP.dll") &&
+        IsTranslucentTBProcessRunning())
     {
         SetHookStatus(kStatusFailed, ERROR_ALREADY_EXISTS);
         SignalReady();

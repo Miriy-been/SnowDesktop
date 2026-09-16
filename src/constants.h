@@ -39,9 +39,11 @@ constexpr int kTextTop = 70;
 // reset actions use the separate 16 cu configurable default below.
 constexpr float kItemFontSize = 15.0f;
 constexpr float kDefaultItemFontSizeCu = 16.0f;
+// 桌面图标标题字号默认（列表标题与组件内部默认字号仍用上面的 16 cu）。
+constexpr float kDefaultItemTitleFontSizeCu = 12.0f;
 constexpr float kMinimumItemFontSizeCu = 10.0f;
 constexpr float kMaximumItemFontSizeCu = 24.0f;
-constexpr float kDefaultItemIconSizeScale = 1.0f;
+constexpr float kDefaultItemIconSizeScale = 0.70f;
 constexpr float kMinimumItemIconSizeScale = 0.5f;
 constexpr float kMaximumItemIconSizeScale = 1.2f;
 constexpr float kItemLineHeight = kItemFontSize * 7.0f / 6.0f;

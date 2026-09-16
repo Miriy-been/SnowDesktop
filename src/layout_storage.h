@@ -79,6 +79,8 @@ struct WidgetRecord
     bool freePosition = false;
     int freeOffsetX = 0;
     int freeOffsetY = 0;
+    int freeWidth = 0;
+    int freeHeight = 0;
     std::optional<bool> showTitle;
     std::optional<bool> bottomBarHover;
     std::optional<bool> userRenamed;

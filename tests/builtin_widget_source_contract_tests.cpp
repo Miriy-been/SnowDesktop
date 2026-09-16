@@ -590,10 +590,10 @@ void TestBuiltinWidgetForegroundThemes(const fs::path& repository)
 
 void TestAllBuiltinWidgetsUseV2(const fs::path& repository)
 {
-    static constexpr std::array<std::string_view, 11> packages = {
+    static constexpr std::array<std::string_view, 12> packages = {
         "agenda", "analog-clock", "digital-clock", "media-controls",
         "month-calendar", "pomodoro", "quick-launcher", "reminders",
-        "rss-reader", "sticky-note", "system-monitor"
+        "rss-reader", "sticky-note", "system-monitor", "weather"
     };
     const fs::path widgets = repository / "widgets";
     std::size_t discovered = 0;

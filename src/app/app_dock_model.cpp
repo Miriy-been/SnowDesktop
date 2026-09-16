@@ -166,6 +166,26 @@ bool DesktopApp::IsWidgetFreePositioned(
         generalSettings_.widgetFreePosition;
 }
 
+void DesktopApp::ApplyWidgetFreePlacementTransform(
+    DesktopWidget& widget) const
+{
+    if (!IsWidgetFreePositioned(widget)) return;
+    // 页面未显示时 GetGridRect 返回空矩形，必须保持空 bounds 让组件
+    // 隐藏；若在此叠加自由偏移/像素尺寸，空矩形会变成位于 (freeOffset,
+    // freeSize) 的实矩形，导致组件在其他页面上也渲染出来。
+    if (IsRectEmptyRect(widget.bounds)) return;
+    // 自由摆放模式：在网格单元位置上叠加像素偏移
+    widget.bounds.left   += widget.freeOffsetX;
+    widget.bounds.right  += widget.freeOffsetX;
+    widget.bounds.top    += widget.freeOffsetY;
+    widget.bounds.bottom += widget.freeOffsetY;
+    // 自由摆放像素缩放：覆盖网格跨度派生的尺寸
+    if (widget.freeWidth > 0)
+        widget.bounds.right = widget.bounds.left + widget.freeWidth;
+    if (widget.freeHeight > 0)
+        widget.bounds.bottom = widget.bounds.top + widget.freeHeight;
+}
+
 bool DesktopApp::WidgetOccupiesGridSlots(
     const DesktopWidget& widget) const
 {
@@ -182,11 +202,14 @@ void DesktopApp::ClearAllWidgetsFreePosition()
     for (auto& widget : widgets_)
     {
         if (widget.freePosition || widget.freeOffsetX != 0 ||
-            widget.freeOffsetY != 0)
+            widget.freeOffsetY != 0 || widget.freeWidth != 0 ||
+            widget.freeHeight != 0)
         {
             widget.freePosition = false;
             widget.freeOffsetX = 0;
             widget.freeOffsetY = 0;
+            widget.freeWidth = 0;
+            widget.freeHeight = 0;
             changed = true;
         }
     }
