@@ -876,14 +876,20 @@ SIZE MeasureItem(HDC dc, HFONT textFont, const ItemView& item,
         static_cast<int>(primary.size()));
     const SIZE shortcutSize = MeasureText(dc, shortcut.data(),
         static_cast<int>(shortcut.size()));
+    const std::wstring_view rightLabel = item.rightLabel
+        ? item.rightLabel : L"";
+    const SIZE rightSize = MeasureText(dc, rightLabel.data(),
+        static_cast<int>(rightLabel.size()));
     if (oldFont)
         SelectObject(dc, oldFont);
 
     const int shortcutGap = shortcut.empty() ? 0 : metrics.textGap * 3;
+    const int rightGap = rightLabel.empty() ? 0 : metrics.textGap;
     const int arrowWidth = item.hasSubmenu ? metrics.arrowColumnWidth : 0;
     const int contentWidth = metrics.leftPadding +
         metrics.iconColumnWidth + metrics.textGap + primarySize.cx +
-        shortcutGap + shortcutSize.cx + arrowWidth + metrics.rightPadding;
+        shortcutGap + shortcutSize.cx + rightGap + rightSize.cx +
+        arrowWidth + metrics.rightPadding;
     return {
         static_cast<LONG>(std::max(metrics.minimumWidth, contentWidth)),
         static_cast<LONG>(metrics.rowHeight),
@@ -976,6 +982,19 @@ bool DrawItem(HDC dc, HFONT textFont, HFONT iconFont,
     textBounds.right -= metrics.rightPadding +
         (item.hasSubmenu ? metrics.arrowColumnWidth : 0);
 
+    // 右侧次要说明：为它预留右端空间，并以暗色弱化绘制。
+    const std::wstring_view rightLabel = item.rightLabel
+        ? item.rightLabel : L"";
+    RECT rightBounds{};
+    if (!rightLabel.empty())
+    {
+        const SIZE rightSize = MeasureText(dc, rightLabel.data(),
+            static_cast<int>(rightLabel.size()));
+        rightBounds = textBounds;
+        rightBounds.left = textBounds.right - rightSize.cx;
+        textBounds.right = rightBounds.left - metrics.textGap;
+    }
+
     std::wstring_view label = item.label ? item.label : L"";
     const size_t tab = label.find(L'\t');
     std::wstring primary(label.substr(0, tab));
@@ -996,6 +1015,20 @@ bool DrawItem(HDC dc, HFONT textFont, HFONT iconFont,
         DrawTextW(dc, shortcut.c_str(), static_cast<int>(shortcut.size()),
             &textBounds, DT_RIGHT | DT_VCENTER | DT_SINGLELINE |
                 DT_END_ELLIPSIS | DT_HIDEPREFIX);
+    }
+    if (!rightLabel.empty())
+    {
+        // 次要色：前景向背景方向弱化约 45%。
+        const COLORREF dimmed = RGB(
+            (GetRValue(foreground) * 11 + GetRValue(palette.background) * 9) / 20,
+            (GetGValue(foreground) * 11 + GetGValue(palette.background) * 9) / 20,
+            (GetBValue(foreground) * 11 + GetBValue(palette.background) * 9) / 20);
+        SetTextColor(dc, dimmed);
+        DrawTextW(dc, rightLabel.data(),
+            static_cast<int>(rightLabel.size()), &rightBounds,
+            DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS |
+                DT_HIDEPREFIX);
+        SetTextColor(dc, foreground);
     }
     if (oldFont)
         SelectObject(dc, oldFont);

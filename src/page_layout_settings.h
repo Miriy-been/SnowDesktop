@@ -20,6 +20,7 @@ enum class PageLayoutRole : std::uint8_t
 struct PageLayoutEntry
 {
     std::wstring id;
+    std::wstring name;
     int columns = 1;
     int rows = 1;
     std::size_t itemCount = 0;

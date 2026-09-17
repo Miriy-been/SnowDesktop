@@ -368,9 +368,10 @@ void DesktopApp::InvalidatePageDotsIndicator()
     const PageDotsLayoutInfo info = ComputePageDotsLayout();
     if (!info.valid) return;
     RECT dirty = info.capsule;
-    if (generalSettings_.pageDotsShowName)
+    const bool hintVisible = ComputeCollectHint().valid;
+    if (generalSettings_.pageDotsShowName || hintVisible)
     {
-        // 气泡可能出现在胶囊上方或下方，预留一个气泡高度的扩展区。
+        // 气泡/轻提示可能出现在胶囊上方或下方，预留一个胶囊高度的扩展区。
         const LONG band = static_cast<LONG>(info.capsuleHeight) + 64;
         if (generalSettings_.pageDotsVertical == 1)
             dirty.bottom += band;
@@ -556,6 +557,9 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
         }
     }
 
+    // 收录轻提示：有待归位文件时显示在圆点胶囊旁（hover 名字气泡会覆盖它）。
+    DrawCollectHint(ctx);
+
     // hover 提示：显示悬停圆点对应页面的名字
     if (hoveredDot >= 0 && generalSettings_.pageDotsShowName)
     {
@@ -619,4 +623,144 @@ void DesktopApp::DrawPageDotsIndicator(ID2D1DeviceContext* ctx)
             }
         }
     }
+}
+
+/**
+ * @brief 汇总当前显示页上已收录分类散落在其它页面的可归位文件。
+ *
+ * 只统计顶层桌面项，且只针对“当前正在显示的那一页”作为归属页的占用：
+ * 轻提示画在圆点胶囊旁，语义是「有文件该归到本页」，因此在其它页面上
+ * 不显示，避免任何一页都弹提示而没有针对性。
+ */
+DesktopApp::CollectHintInfo DesktopApp::ComputeCollectHint() const
+{
+    CollectHintInfo info;
+    if (desktopIconsHidden_ || savedPageIds_.size() < 2) return info;
+    const GridPage* hostPage = GetPageNavigationGridPage();
+    if (!hostPage || hostPage->id.empty()) return info;
+    for (const auto& [categoryId, ownerPageId] : categoryClaims_)
+    {
+        if (categoryId.empty() || ownerPageId.empty()) continue;
+        if (ownerPageId != hostPage->id) continue;
+        int count = 0;
+        for (const auto& item : items_)
+        {
+            if (item.name.empty() || item.gridCell.pageId.empty())
+                continue;
+            if (item.gridCell.pageId == kDockPageId ||
+                item.gridCell.pageId == ownerPageId)
+                continue;
+            if (IsItemInAnyWidget(item)) continue;
+            if (!IsCategoryMatchForItem(item, categoryId)) continue;
+            ++count;
+        }
+        if (count > 0)
+        {
+            info.pending.emplace_back(categoryId, ownerPageId);
+            info.totalPending += count;
+        }
+    }
+    info.valid = info.totalPending > 0;
+    return info;
+}
+
+/**
+ * @brief 命中测试收录轻提示胶囊（区域由最近一次绘制记录）。
+ *
+ * 先做 O(1) 区域排除，仅在指针落入胶囊时才复核提示仍然有效，
+ * 避免桌面隐藏或翻页布局变化后残留的旧区域被误点，也避免每次
+ * 鼠标移动都做一次全量分类统计。
+ */
+bool DesktopApp::HitTestCollectHint(POINT clientPt) const
+{
+    if (collectHintRect_.right <= collectHintRect_.left ||
+        collectHintRect_.bottom <= collectHintRect_.top)
+        return false;
+    if (!PtInRect(&collectHintRect_, clientPt)) return false;
+    return ComputeCollectHint().valid;
+}
+
+/**
+ * @brief 绘制收录轻提示胶囊（圆点指示器旁，hover 提亮）。
+ *
+ * 位置跟随圆点配置：圆点在顶部时显示在下方，否则显示在上方；
+ * 悬停页面名气泡在其后绘制，会短暂覆盖本提示。
+ */
+void DesktopApp::DrawCollectHint(ID2D1DeviceContext* ctx)
+{
+    collectHintRect_ = {};
+    if (!ctx) return;
+    const CollectHintInfo hint = ComputeCollectHint();
+    if (!hint.valid) return;
+    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    if (!info.valid) return;
+
+    const std::wstring text = _LFW("app.collect.hint",
+        std::to_wstring(hint.totalPending));
+    auto* dwrite = GetDWriteFactory();
+    if (!dwrite) return;
+    ComPtr<IDWriteTextFormat> fmt;
+    if (FAILED(dwrite->CreateTextFormat(L"Segoe UI", nullptr,
+            DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL, 12.0f, L"", &fmt)) || !fmt)
+        return;
+    fmt->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    fmt->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    fmt->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+
+    float textWidth = 0.0f;
+    float textHeight = 0.0f;
+    ComPtr<IDWriteTextLayout> measure;
+    if (SUCCEEDED(dwrite->CreateTextLayout(text.c_str(),
+            static_cast<UINT32>(text.size()), fmt.Get(),
+            800.0f, 60.0f, &measure)) && measure)
+    {
+        DWRITE_TEXT_METRICS textMetrics{};
+        if (SUCCEEDED(measure->GetMetrics(&textMetrics)))
+        {
+            textWidth = textMetrics.width;
+            textHeight = textMetrics.height;
+        }
+    }
+    if (textWidth <= 0.0f || textHeight <= 0.0f) return;
+
+    constexpr float kPadX = 9.0f;
+    constexpr float kPadY = 4.0f;
+    const float pillWidth = textWidth + kPadX * 2.0f;
+    const float pillHeight = textHeight + kPadY * 2.0f;
+    const float pillCenterX =
+        (static_cast<float>(info.capsule.left) +
+            static_cast<float>(info.capsule.right)) * 0.5f;
+    const float pillLeft = pillCenterX - pillWidth * 0.5f;
+    const float pillTop =
+        generalSettings_.pageDotsVertical == 1
+        ? static_cast<float>(info.capsule.bottom) + 8.0f
+        : static_cast<float>(info.capsule.top) - pillHeight - 8.0f;
+    const RECT pillRect = MakeRect(
+        static_cast<LONG>(std::floor(pillLeft)),
+        static_cast<LONG>(std::floor(pillTop)),
+        static_cast<LONG>(std::ceil(pillLeft + pillWidth)),
+        static_cast<LONG>(std::ceil(pillTop + pillHeight)));
+    collectHintRect_ = pillRect;
+
+    const float borderAlpha = collectHintHovered_ ? 0.85f : 0.45f;
+    DrawD2DRoundedRectangle(
+        ctx, pillRect, 6.0f,
+        D2D1::ColorF(0.05f, 0.05f, 0.08f, 0.90f),
+        D2D1::ColorF(0.4f, 0.6f, 1.0f, borderAlpha),
+        1.0f);
+    DrawD2DText(ctx, text, pillRect, fmt.Get(),
+        D2D1::ColorF(0.95f, 0.96f, 1.0f, 0.95f));
+}
+
+/**
+ * @brief 轻提示点击：把全部待收录文件移回各自归属页。
+ */
+void DesktopApp::CollectPendingToOwners()
+{
+    const CollectHintInfo hint = ComputeCollectHint();
+    if (!hint.valid) return;
+    for (const auto& [categoryId, ownerPageId] : hint.pending)
+        MoveCategoryItemsToPage(categoryId, ownerPageId);
+    InvalidatePageDotsIndicator();
 }

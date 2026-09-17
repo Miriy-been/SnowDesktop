@@ -99,6 +99,7 @@ void DesktopApp::LoadLayoutSlots()
     savedPageIds_.clear();
     savedPageColumns_.clear();
     savedPageRows_.clear();
+    savedPageNames_.clear();
 
     const int widgetTitleSchemaVersion =
         document.widgetTitleSchemaVersion.value_or(0);
@@ -257,6 +258,8 @@ void DesktopApp::LoadLayoutSlots()
             savedPageColumns_[pageId] = *page.columns;
         if (page.rows && *page.rows > 0)
             savedPageRows_[pageId] = *page.rows;
+        if (page.name && !page.name->empty())
+            savedPageNames_[pageId] = Utf8ToWide(*page.name);
     }
 
     for (const auto& item : document.items)
@@ -766,6 +769,7 @@ void DesktopApp::LoadLayoutSlots()
         std::erase(savedPageIds_, candidate);
         savedPageColumns_.erase(candidate);
         savedPageRows_.erase(candidate);
+        savedPageNames_.erase(candidate);
     }
 
     navTabOrder_.clear();
@@ -924,7 +928,13 @@ bool DesktopApp::SaveLayoutSlots()
             if (rowIt != savedPageRows_.end()) rows = rowIt->second;
         }
         file << "\", \"columns\": " << std::max(1, columns) <<
-            ", \"rows\": " << std::max(1, rows) << " }";
+            ", \"rows\": " << std::max(1, rows);
+        if (auto nameIt = savedPageNames_.find(pagesToWrite[i]);
+            nameIt != savedPageNames_.end() && !nameIt->second.empty())
+        {
+            file << ", \"name\": \"" << JsonEscapeUtf8(nameIt->second) << "\"";
+        }
+        file << " }";
         file << (i + 1 == pagesToWrite.size() ? "\n" : ",\n");
     }
     file << "  ],\n  \"items\": [\n";

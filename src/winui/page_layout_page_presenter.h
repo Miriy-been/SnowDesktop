@@ -30,6 +30,9 @@ struct PageLayoutPageActions
         const std::wstring& pageId, int columns, int rows)> applyGrid;
     std::function<PageLayoutOperationResult(
         std::uint64_t expectedRevision)> addPage;
+    std::function<PageLayoutOperationResult(
+        std::uint64_t expectedRevision,
+        const std::wstring& pageId, const std::wstring& name)> renamePage;
     std::function<void(
         std::wstring title,
         std::wstring message,

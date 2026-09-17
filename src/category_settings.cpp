@@ -344,6 +344,61 @@ std::wstring GetCategorySettingsPath()
     return GetDataFilePath(L"SnowDesktop.categories.json");
 }
 
+std::wstring GetCategoryClaimsPath()
+{
+    return GetDataFilePath(L"SnowDesktop.category-claims.json");
+}
+
+bool LoadCategoryClaims(const wchar_t* path,
+    std::map<std::wstring, std::wstring>& claims)
+{
+    claims.clear();
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    const std::string text = ss.str();
+    if (text.empty()) return false;
+
+    size_t begin = 0;
+    size_t end = 0;
+    if (!FindJsonArray(text, "claims", begin, end))
+        return false;
+    for (const std::string& objectText :
+        JsonObjectsInArray(text, begin, end))
+    {
+        std::string idUtf8;
+        std::string pageUtf8;
+        ReadStringField(objectText, "id", idUtf8);
+        ReadStringField(objectText, "page", pageUtf8);
+        std::wstring id = Utf8ToWideLocal(idUtf8);
+        std::wstring page = Utf8ToWideLocal(pageUtf8);
+        if (!id.empty() && !page.empty())
+            claims.emplace(std::move(id), std::move(page));
+    }
+    return true;
+}
+
+bool SaveCategoryClaims(const wchar_t* path,
+    const std::map<std::wstring, std::wstring>& claims)
+{
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) return false;
+    file << "{\n  \"claims\": [\n";
+    bool first = true;
+    for (const auto& [id, page] : claims)
+    {
+        if (id.empty() || page.empty()) continue;
+        if (!first) file << ",\n";
+        first = false;
+        file << "    { \"id\": \"" << JsonEscapeUtf8(id)
+             << "\", \"page\": \"" << JsonEscapeUtf8(page) << "\" }";
+    }
+    if (!first) file << "\n";
+    file << "  ]\n}\n";
+    return true;
+}
+
 std::vector<std::wstring> ParseCategoryExtensionList(const std::wstring& text)
 {
     std::vector<std::wstring> result;

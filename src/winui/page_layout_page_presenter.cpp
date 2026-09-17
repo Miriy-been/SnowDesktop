@@ -16,6 +16,7 @@ namespace snowdesktop::winui
 namespace mux = winrt::Microsoft::UI::Xaml;
 namespace muxa = winrt::Microsoft::UI::Xaml::Automation;
 namespace muxc = winrt::Microsoft::UI::Xaml::Controls;
+namespace muxi = winrt::Microsoft::UI::Xaml::Input;
 
 namespace
 {
@@ -94,9 +95,11 @@ struct PageLayoutPagePresenter::Impl
     {
         muxc::Grid root{nullptr};
         muxc::TextBlock title{nullptr};
+        muxc::TextBox nameEdit{nullptr};
         muxc::TextBlock role{nullptr};
         muxc::TextBlock dimensions{nullptr};
         muxc::TextBlock content{nullptr};
+        muxc::Button rename{nullptr};
         muxc::Button moveUp{nullptr};
         muxc::Button moveDown{nullptr};
     };
@@ -120,6 +123,7 @@ struct PageLayoutPagePresenter::Impl
     std::unordered_map<std::wstring, RowControls> rowControls;
     PageLayoutSnapshot snapshot;
     std::wstring selectedPageId;
+    std::wstring editingPageId;
     std::shared_ptr<ConfirmationBridge> confirmation;
     bool hasSnapshot = false;
     bool orderDirty = false;
@@ -305,8 +309,20 @@ struct PageLayoutPagePresenter::Impl
 
     [[nodiscard]] std::wstring PageLabel(std::size_t index) const
     {
+        if (index < snapshot.pages.size() &&
+            !snapshot.pages[index].name.empty())
+            return snapshot.pages[index].name;
         return FormatText(L("app.grid.page_label"),
             {std::to_wstring(index + 1)});
+    }
+
+    [[nodiscard]] std::wstring PageLabelForId(
+        const std::wstring& pageId) const
+    {
+        for (std::size_t index = 0; index < snapshot.pages.size(); ++index)
+            if (snapshot.pages[index].id == pageId)
+                return PageLabel(index);
+        return {};
     }
 
     [[nodiscard]] std::wstring RoleLabel(
@@ -342,6 +358,7 @@ struct PageLayoutPagePresenter::Impl
                      1.0, mux::GridUnitType::Star),
                  mux::GridLengthHelper::Auto(),
                  mux::GridLengthHelper::Auto(),
+                 mux::GridLengthHelper::Auto(),
                  mux::GridLengthHelper::Auto()})
         {
             muxc::ColumnDefinition definition;
@@ -361,11 +378,14 @@ struct PageLayoutPagePresenter::Impl
         title.Text(PageLabel(index));
         title.FontWeight(
             winrt::Windows::UI::Text::FontWeights::SemiBold());
+        muxc::TextBox nameEdit;
+        nameEdit.Visibility(mux::Visibility::Collapsed);
         muxc::TextBlock role;
         role.Text(RoleLabel(page));
         role.Opacity(0.72);
         role.TextWrapping(mux::TextWrapping::Wrap);
         identity.Children().Append(title);
+        identity.Children().Append(nameEdit);
         identity.Children().Append(role);
         muxc::Grid::SetColumn(identity, 1);
         row.Children().Append(identity);
@@ -388,12 +408,20 @@ struct PageLayoutPagePresenter::Impl
         muxc::Grid::SetColumn(metrics, 2);
         row.Children().Append(metrics);
 
+        muxc::Button rename;
+        muxc::FontIcon renameIcon;
+        renameIcon.Glyph(L"\xE8AC"); // Edit
+        rename.Content(renameIcon);
+        rename.VerticalAlignment(mux::VerticalAlignment::Center);
+        muxc::Grid::SetColumn(rename, 3);
+        row.Children().Append(rename);
+
         muxc::Button moveUp;
         muxc::FontIcon upIcon;
         upIcon.Glyph(L"\xE74A");
         moveUp.Content(upIcon);
         moveUp.VerticalAlignment(mux::VerticalAlignment::Center);
-        muxc::Grid::SetColumn(moveUp, 3);
+        muxc::Grid::SetColumn(moveUp, 4);
         row.Children().Append(moveUp);
 
         muxc::Button moveDown;
@@ -401,27 +429,94 @@ struct PageLayoutPagePresenter::Impl
         downIcon.Glyph(L"\xE74B");
         moveDown.Content(downIcon);
         moveDown.VerticalAlignment(mux::VerticalAlignment::Center);
-        muxc::Grid::SetColumn(moveDown, 4);
+        muxc::Grid::SetColumn(moveDown, 5);
         row.Children().Append(moveDown);
 
         const std::wstring upText = FormatText(
             L("settings.pages.moveUp"), {PageLabel(index)});
         const std::wstring downText = FormatText(
             L("settings.pages.moveDown"), {PageLabel(index)});
+        const std::wstring renameText = L("settings.pages.rename");
+        muxa::AutomationProperties::SetName(rename, renameText);
         muxa::AutomationProperties::SetName(moveUp, upText);
         muxa::AutomationProperties::SetName(moveDown, downText);
+        muxc::ToolTipService::SetToolTip(
+            rename, winrt::box_value(renameText));
         muxc::ToolTipService::SetToolTip(moveUp, winrt::box_value(upText));
-        muxc::ToolTipService::SetToolTip(moveDown, winrt::box_value(downText));
+        muxc::ToolTipService::SetToolTip(
+            moveDown, winrt::box_value(downText));
         moveUp.Click([this, pageId = page.id](const auto&, const auto&) {
             MovePage(pageId, -1);
         });
         moveDown.Click([this, pageId = page.id](const auto&, const auto&) {
             MovePage(pageId, 1);
         });
+        rename.Click([this, pageId = page.id](const auto&, const auto&) {
+            BeginPageRename(pageId);
+        });
+        nameEdit.KeyDown([this, pageId = page.id](
+                const auto&, const muxi::KeyRoutedEventArgs& args) {
+            if (args.Key() == winrt::Windows::System::VirtualKey::Enter)
+            {
+                CommitPageRename(pageId, true);
+                args.Handled(true);
+            }
+            else if (args.Key() ==
+                winrt::Windows::System::VirtualKey::Escape)
+            {
+                CommitPageRename(pageId, false);
+                args.Handled(true);
+            }
+        });
+        nameEdit.LostFocus(
+            [this, pageId = page.id](const auto&, const auto&) {
+                if (editingPageId == pageId)
+                    CommitPageRename(pageId, true);
+            });
         rowControls[page.id] = {
-            row, title, role, dimensions, content, moveUp, moveDown};
+            row, title, nameEdit, role, dimensions, content,
+            rename, moveUp, moveDown};
         muxa::AutomationProperties::SetName(row, PageLabel(index));
         return row;
+    }
+
+    void BeginPageRename(const std::wstring& pageId)
+    {
+        if (closed || pageDragActive || confirmationPending) return;
+        const auto found = rowControls.find(pageId);
+        if (found == rowControls.end()) return;
+        auto& controls = found->second;
+        if (editingPageId == pageId) return;
+        if (!editingPageId.empty())
+            CommitPageRename(editingPageId, true);
+        editingPageId = pageId;
+        controls.title.Visibility(mux::Visibility::Collapsed);
+        controls.nameEdit.Visibility(mux::Visibility::Visible);
+        controls.nameEdit.Text(controls.title.Text());
+        controls.nameEdit.Focus(mux::FocusState::Programmatic);
+        controls.nameEdit.SelectAll();
+    }
+
+    void CommitPageRename(const std::wstring& pageId, bool commit)
+    {
+        const auto found = rowControls.find(pageId);
+        if (found == rowControls.end()) return;
+        auto& controls = found->second;
+        if (editingPageId != pageId) return;
+        editingPageId.clear();
+        const std::wstring newName = commit
+            ? std::wstring(controls.nameEdit.Text().c_str())
+            : std::wstring{};
+        controls.nameEdit.Visibility(mux::Visibility::Collapsed);
+        controls.title.Visibility(mux::Visibility::Visible);
+        if (!commit || !active || !hasSnapshot || !actions.renamePage)
+            return;
+        std::wstring currentName;
+        for (const auto& entry : snapshot.pages)
+            if (entry.id == pageId) { currentName = entry.name; break; }
+        if (newName == currentName) return;
+        ApplyResult(actions.renamePage(snapshot.revision, pageId, newName),
+            L("settings.pages.renamed"));
     }
 
     [[nodiscard]] bool PageListMatchesSnapshot(
@@ -467,6 +562,11 @@ struct PageLayoutPagePresenter::Impl
                 L("settings.pages.moveUp"), {PageLabel(index)});
             const std::wstring downText = FormatText(
                 L("settings.pages.moveDown"), {PageLabel(index)});
+            const std::wstring renameText = L("settings.pages.rename");
+            muxa::AutomationProperties::SetName(
+                controls.rename, renameText);
+            muxc::ToolTipService::SetToolTip(
+                controls.rename, winrt::box_value(renameText));
             muxa::AutomationProperties::SetName(
                 controls.moveUp, upText);
             muxa::AutomationProperties::SetName(
@@ -504,6 +604,7 @@ struct PageLayoutPagePresenter::Impl
         const bool wasUpdating = updating;
         updating = true;
         pageList.Items().Clear();
+        editingPageId.clear();
         rowControls.clear();
         for (std::size_t index = 0; index < snapshot.pages.size(); ++index)
             pageList.Items().Append(BuildPageRow(snapshot.pages[index], index));

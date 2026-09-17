@@ -1734,6 +1734,129 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
         AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     }
 
+    // ── 收录：按分类把匹配的桌面文件汇聚到当前页（可勾选/取消/转移） ──
+    HMENU collectMenu = nullptr;
+    std::unordered_map<UINT, std::wstring> collectRightLabels;
+    // 数量预览：onlyClickedPage=true 只统计本页命中数（本页已收录），
+    // 否则统计桌面上全部命中数（未占用的分类，取消勾选后仍可见）。
+    auto countMatching = [&](const std::wstring& categoryId,
+        bool onlyClickedPage) -> int
+    {
+        int count = 0;
+        for (const auto& item : items_)
+        {
+            if (item.name.empty() || item.gridCell.pageId.empty())
+                continue;
+            if (item.gridCell.pageId == kDockPageId)
+                continue;
+            if (IsItemInAnyWidget(item)) continue;
+            if (onlyClickedPage &&
+                item.gridCell.pageId != clickedPageId)
+                continue;
+            if (!IsCategoryMatchForItem(item, categoryId)) continue;
+            ++count;
+        }
+        return count;
+    };
+    // 唯一状态源：HMENU 构建与点击后就地刷新都从这里取条目。
+    // commandOut 非空时同步输出 command → categoryId 映射，
+    // 保证点击解析与实际构建（含空分类跳过）完全一致。
+    std::unordered_map<UINT, std::wstring> collectCommandCategories;
+    auto buildCollectStates = [&]() ->
+        std::vector<snowdesktop::modern_menu::Item>
+    {
+        std::vector<snowdesktop::modern_menu::Item> ownedStates;
+        std::vector<snowdesktop::modern_menu::Item> otherStates;
+        UINT itemCommand = kContextCollectFirst;
+        auto push = [&](const std::wstring& categoryId)
+        {
+            const std::wstring owner =
+                GetCategoryClaimOwner(categoryId);
+            const bool owned = owner == clickedPageId;
+            const int count =
+                countMatching(categoryId, owned);
+            // 空分类隐藏：未占用且无可移动文件时不显示。
+            if (!owned && owner.empty() && count == 0)
+                return;
+            collectCommandCategories[itemCommand] = categoryId;
+            snowdesktop::modern_menu::Item item;
+            item.command = itemCommand++;
+            item.label =
+                GetCategoryLabel(GetCategorySettings(), categoryId);
+            if (owned)
+            {
+                item.rightLabel = _LFW("app.menu.collect_count",
+                    std::to_wstring(count));
+            }
+            else if (!owner.empty())
+            {
+                // 占用冲突：右侧显示归属页（点击可确认转移）。
+                const auto it = std::find(savedPageIds_.begin(),
+                    savedPageIds_.end(), owner);
+                if (it != savedPageIds_.end())
+                {
+                    item.rightLabel =
+                        _LFW("app.menu.collect_claimed",
+                            GetPageDisplayName(static_cast<int>(
+                                it - savedPageIds_.begin())));
+                }
+            }
+            else
+            {
+                item.rightLabel = _LFW("app.menu.collect_count",
+                    std::to_wstring(count));
+            }
+            item.enabled = true;
+            item.checked = owned;
+            (owned ? ownedStates : otherStates)
+                .push_back(std::move(item));
+        };
+        push(L"folders");
+        for (const std::wstring& categoryId :
+            GetCategoryOrder(GetCategorySettings()))
+        {
+            if (categoryId == L"all" || categoryId == L"folders" ||
+                categoryId == L"others")
+                continue;
+            if (itemCommand > kContextCollectLast) break;
+            push(categoryId);
+        }
+        // 已收录分类置顶，其余保持原顺序。
+        ownedStates.insert(ownedStates.end(),
+            std::make_move_iterator(otherStates.begin()),
+            std::make_move_iterator(otherStates.end()));
+        return ownedStates;
+    };
+    if (showPageNavigation && !clickedPageId.empty())
+    {
+        collectMenu = CreatePopupMenu();
+        if (collectMenu)
+        {
+            const auto states = buildCollectStates();
+            for (const auto& state : states)
+            {
+                AppendMenuW(collectMenu,
+                    MF_STRING | (state.checked ? MF_CHECKED : 0),
+                    state.command, state.label.c_str());
+                if (!state.rightLabel.empty())
+                    collectRightLabels.emplace(state.command,
+                        state.rightLabel);
+            }
+            AppendMenuW(menu, MF_POPUP,
+                reinterpret_cast<UINT_PTR>(collectMenu),
+                _LW("app.menu.collect"));
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        }
+    }
+    // 菜单命令 → 分类 ID：直接查构建期快照（buildCollectStates 已把
+    // 空分类跳过与置顶排序固化在映射里），避免两套逻辑错位。
+    auto resolveCollectCategory = [&](UINT command) -> std::wstring
+    {
+        const auto found = collectCommandCategories.find(command);
+        return found != collectCommandCategories.end()
+            ? found->second : std::wstring{};
+    };
+
     AppendMenuW(menu, MF_STRING, kContextPageAdd, _LW("app.menu.add_page"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, kContextSettingsCommand, _LW("app.menu.settings"));
@@ -1945,6 +2068,55 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
             previewAnchor = hover;
     };
     const auto changeDisplaySetting = [&](UINT command, auto& rootItems) {
+        // 收录子菜单：点击后原地更新勾选/占用状态并保持菜单打开，
+        // 与“显示设置”一致；点击菜单外才整体关闭。
+        if (command >= kContextCollectFirst && command <= kContextCollectLast)
+        {
+            const std::wstring categoryId = resolveCollectCategory(command);
+            if (!categoryId.empty())
+            {
+                const std::wstring owner =
+                    GetCategoryClaimOwner(categoryId);
+                if (!owner.empty() && owner != clickedPageId)
+                {
+                    // 占用冲突：提示归属页，确认后转移到当前页。
+                    const auto it = std::find(savedPageIds_.begin(),
+                        savedPageIds_.end(), owner);
+                    const std::wstring ownerName =
+                        it != savedPageIds_.end()
+                        ? GetPageDisplayName(static_cast<int>(
+                            it - savedPageIds_.begin()))
+                        : std::wstring{};
+                    std::wstring text =
+                        _LFW("app.menu.collect_transfer", ownerName);
+                    if (MessageBoxW(hwnd_, text.c_str(),
+                            _LW("app.menu.collect"),
+                            MB_YESNO | MB_ICONQUESTION |
+                                MB_SETFOREGROUND) == IDYES)
+                    {
+                        ToggleCategoryCollection(categoryId, clickedPageId);
+                    }
+                }
+                else
+                {
+                    ToggleCategoryCollection(categoryId, clickedPageId);
+                }
+                snowdesktop::modern_menu::VisitItems(rootItems,
+                    [&](snowdesktop::modern_menu::Item& item) {
+                        if (item.command ==
+                            reinterpret_cast<UINT_PTR>(collectMenu))
+                        {
+                            // 直接替换 children 内容（弹窗持有的是该
+                            // vector 对象的指针，赋值后立即可见）。不能用
+                            // UpdateItemStates：收录条目会因“空分类隐藏/
+                            // 出现”导致条目数变化，尺寸不一致时它会静默
+                            // 跳过，勾选状态就卡在旧值。
+                            item.children = buildCollectStates();
+                        }
+                    });
+            }
+            return true;
+        }
         bool handled = ApplyGridMenuAdjustment(command);
         if (command >= kContextSpacingPresetFirst && command <= kContextSpacingPresetFirst + 200)
         { SetIconSpacing(static_cast<float>(command - kContextSpacingPresetFirst) / 100.f); handled = true; }
@@ -1990,7 +2162,7 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
     };
     UINT command = ShowModernMenu(menu, screenPoint, hwnd_,
         false, false, nullptr, changeDisplaySetting,
-        previewWidgetMenuItem, searchLuaWidgets);
+        previewWidgetMenuItem, searchLuaWidgets, collectRightLabels);
     previewWindow.Close();
 
     if (sortMenu) DestroyMenu(sortMenu);

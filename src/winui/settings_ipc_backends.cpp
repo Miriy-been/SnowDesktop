@@ -321,6 +321,9 @@ struct BackendServer::Impl
         channel.Bind<PageLayoutOperationResult, Token>("pages.add", [this](Token revision) {
             return options.pageLayoutPage.addPage ? options.pageLayoutPage.addPage(revision) : PageLayoutOperationResult{};
         });
+        channel.Bind<PageLayoutOperationResult, Token, std::wstring, std::wstring>("pages.rename", [this](Token revision, std::wstring id, std::wstring name) {
+            return options.pageLayoutPage.renamePage ? options.pageLayoutPage.renamePage(revision, std::move(id), std::move(name)) : PageLayoutOperationResult{};
+        });
 
         channel.Bind<void>("widgets.create", [this] { CreateWidgets(); });
         channel.Bind<bool, Token, bool>("widgets.Activate", [this](Token generation, bool discover) {
@@ -441,6 +444,7 @@ SettingsWindowHostOptions CreateRemoteHostOptions(Channel& channel)
     options.pageLayoutPage.applyOrder = [&channel](Token revision, const std::vector<std::wstring>& ids) { return channel.Call<PageLayoutOperationResult>("pages.order", revision, ids); };
     options.pageLayoutPage.applyGrid = [&channel](Token revision, std::wstring_view id, int columns, int rows) { return channel.Call<PageLayoutOperationResult>("pages.grid", revision, std::wstring(id), columns, rows); };
     options.pageLayoutPage.addPage = [&channel](Token revision) { return channel.Call<PageLayoutOperationResult>("pages.add", revision); };
+    options.pageLayoutPage.renamePage = [&channel](Token revision, std::wstring_view id, std::wstring_view name) { return channel.Call<PageLayoutOperationResult>("pages.rename", revision, std::wstring(id), std::wstring(name)); };
     options.createWidgetsBackend = [&channel](WidgetsPageBackendOptions configured) { return std::make_unique<WidgetsProxy>(channel, std::move(configured)); };
     options.createBackupBackend = [&channel](BackupDataPageBackendOptions configured) { return std::make_unique<BackupProxy>(channel, std::move(configured)); };
     return options;

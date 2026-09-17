@@ -762,6 +762,11 @@ int DesktopApp::Run(HINSTANCE instance, int showCommand)
         std::uint64_t expectedRevision) {
         return AddPageFromSettings(expectedRevision);
     };
+    settingsHostOptions.pageLayoutPage.renamePage = [this](
+        std::uint64_t expectedRevision,
+        const std::wstring& pageId, const std::wstring& name) {
+        return ApplyPageRenameFromSettings(expectedRevision, pageId, name);
+    };
     settingsHostOptions.refreshExternalState = [this]() {
         if (!settingsController_)
             return;

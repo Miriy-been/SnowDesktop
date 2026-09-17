@@ -574,7 +574,8 @@ UINT DesktopApp::ShowModernMenu(
     std::function<void(const snowdesktop::modern_menu::HoverInfo&)>
         onHover,
     std::function<void(UINT, const std::wstring&,
-        std::vector<snowdesktop::modern_menu::Item>&)> onTextChanged)
+        std::vector<snowdesktop::modern_menu::Item>&)> onTextChanged,
+    const std::unordered_map<UINT, std::wstring>& itemRightLabels)
 {
     if (!rootMenu)
         return 0;
@@ -645,6 +646,20 @@ UINT DesktopApp::ShowModernMenu(
 
     const std::vector<snowdesktop::modern_menu::Item> items =
         buildItems(rootMenu);
+    // 注入右对齐次要说明（HMENU 无法携带该元数据）。
+    std::vector<snowdesktop::modern_menu::Item> decoratedItems;
+    const std::vector<snowdesktop::modern_menu::Item>* menuItems = &items;
+    if (!itemRightLabels.empty())
+    {
+        decoratedItems = items;
+        snowdesktop::modern_menu::VisitItems(decoratedItems,
+            [&](snowdesktop::modern_menu::Item& item) {
+                const auto found = itemRightLabels.find(item.command);
+                if (found != itemRightLabels.end())
+                    item.rightLabel = found->second;
+            });
+        menuItems = &decoratedItems;
+    }
     snowdesktop::modern_menu::Options options;
     options.owner = owner;
     options.anchor = screenPoint;
@@ -754,7 +769,7 @@ UINT DesktopApp::ShowModernMenu(
         WriteDiagnosticLogEntry(line.str().c_str(), DiagnosticLogLevel::Debug);
     }
     const snowdesktop::modern_menu::Result result =
-        snowdesktop::modern_menu::Show(items, options);
+        snowdesktop::modern_menu::Show(*menuItems, options);
 
     return result.command;
 }

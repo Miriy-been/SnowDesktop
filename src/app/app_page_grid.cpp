@@ -36,6 +36,7 @@ std::uint64_t PageLayoutRevision(
     for (const auto& page : snapshot.pages)
     {
         MixPageLayoutHash(hash, page.id);
+        MixPageLayoutHash(hash, page.name);
         MixPageLayoutHash(hash, static_cast<std::uint64_t>(page.columns));
         MixPageLayoutHash(hash, static_cast<std::uint64_t>(page.rows));
         MixPageLayoutHash(hash, page.itemCount);
@@ -102,6 +103,9 @@ snowdesktop::PageLayoutSnapshot DesktopApp::CapturePageLayoutSnapshot() const
     {
         snowdesktop::PageLayoutEntry entry;
         entry.id = savedPageIds_[index];
+        if (const auto name = savedPageNames_.find(entry.id);
+            name != savedPageNames_.end())
+            entry.name = name->second;
 
         if (const GridPage* visible = FindGridPage(gridPages_, entry.id))
         {
@@ -362,6 +366,48 @@ snowdesktop::PageLayoutOperationResult DesktopApp::AddPageFromSettings(
     result.status = result.snapshot.revision == current.revision
         ? snowdesktop::PageLayoutOperationStatus::Failed
         : snowdesktop::PageLayoutOperationStatus::Succeeded;
+    return result;
+}
+
+snowdesktop::PageLayoutOperationResult
+DesktopApp::ApplyPageRenameFromSettings(
+    std::uint64_t expectedRevision,
+    const std::wstring& pageId, const std::wstring& name)
+{
+    snowdesktop::PageLayoutOperationResult result;
+    const auto current = CapturePageLayoutSnapshot();
+    if (current.revision != expectedRevision)
+    {
+        result.status = snowdesktop::PageLayoutOperationStatus::Stale;
+        result.snapshot = current;
+        return result;
+    }
+    if (pageId.empty() ||
+        std::ranges::find(savedPageIds_, pageId) == savedPageIds_.end())
+    {
+        result.status = snowdesktop::PageLayoutOperationStatus::Invalid;
+        result.snapshot = current;
+        return result;
+    }
+
+    // 空名（或全空白）恢复默认“第N页”显示。
+    std::wstring trimmed = name;
+    while (!trimmed.empty() &&
+        (trimmed.front() == L' ' || trimmed.front() == L'\t' ||
+         trimmed.front() == L'\r' || trimmed.front() == L'\n'))
+        trimmed.erase(trimmed.begin());
+    while (!trimmed.empty() &&
+        (trimmed.back() == L' ' || trimmed.back() == L'\t' ||
+         trimmed.back() == L'\r' || trimmed.back() == L'\n'))
+        trimmed.pop_back();
+    if (trimmed.empty())
+        savedPageNames_.erase(pageId);
+    else
+        savedPageNames_[pageId] = std::move(trimmed);
+    SaveLayoutSlots();
+
+    result.status = snowdesktop::PageLayoutOperationStatus::Succeeded;
+    result.snapshot = CapturePageLayoutSnapshot();
     return result;
 }
 
@@ -1155,6 +1201,13 @@ int DesktopApp::MaxPageOffset() const
 
 std::wstring DesktopApp::GetPageDisplayName(int index) const
 {
+    // 用户自定义页面名全局生效（设置页、跳转菜单、圆点指示器等）。
+    if (index >= 0 && static_cast<size_t>(index) < savedPageIds_.size())
+    {
+        if (const auto name = savedPageNames_.find(savedPageIds_[index]);
+            name != savedPageNames_.end() && !name->second.empty())
+            return name->second;
+    }
     return _LFW("app.grid.page_label", std::to_wstring(index + 1));
 }
 
@@ -1303,6 +1356,7 @@ void DesktopApp::NormalizePageIds()
     std::erase(savedPageIds_, std::wstring(kDockPageId));
     savedPageColumns_.erase(kDockPageId);
     savedPageRows_.erase(kDockPageId);
+    savedPageNames_.erase(kDockPageId);
     if (savedPageIds_.empty()) return;
     if (savedPageIds_.size() > 9999) return;   // 防御：编号爆炸
 
@@ -1338,7 +1392,7 @@ void DesktopApp::NormalizePageIds()
     for (auto& item : items_)
         if (idMap.contains(item.gridCell.pageId)) item.gridCell.pageId = idMap[item.gridCell.pageId];
 
-    // savedPageColumns_ / savedPageRows_
+    // savedPageColumns_ / savedPageRows_ / savedPageNames_
     std::unordered_map<std::wstring, int> newCols, newRows;
     for (auto& [k, v] : savedPageColumns_)
         newCols.try_emplace(idMap.contains(k) ? idMap[k] : k, v);
@@ -1346,6 +1400,36 @@ void DesktopApp::NormalizePageIds()
         newRows.try_emplace(idMap.contains(k) ? idMap[k] : k, v);
     savedPageColumns_ = std::move(newCols);
     savedPageRows_ = std::move(newRows);
+    std::unordered_map<std::wstring, std::wstring> newNames;
+    for (auto& [k, v] : savedPageNames_)
+        newNames.try_emplace(idMap.contains(k) ? idMap[k] : k, std::move(v));
+    savedPageNames_ = std::move(newNames);
+
+    // 分类收录占用以 pageId 为键，页面重新编号（含交换顺序、删除空页）
+    // 时必须同步改写，否则占用会漂移到错误的页面，文件看起来散落在
+    // 归属页之外并触发收录轻提示。同时清理指向已删除页面的陈旧占用。
+    bool claimsChanged = false;
+    for (auto claim = categoryClaims_.begin(); claim != categoryClaims_.end();)
+    {
+        if (const auto mapped = idMap.find(claim->second);
+            mapped != idMap.end())
+        {
+            claim->second = mapped->second;
+            claimsChanged = true;
+        }
+        if (std::ranges::find(savedPageIds_, claim->second) ==
+            savedPageIds_.end())
+        {
+            claim = categoryClaims_.erase(claim);
+            claimsChanged = true;
+        }
+        else
+        {
+            ++claim;
+        }
+    }
+    if (claimsChanged)
+        SaveCategoryClaims(GetCategoryClaimsPath().c_str(), categoryClaims_);
 }
 
 /**

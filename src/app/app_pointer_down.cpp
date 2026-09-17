@@ -20,6 +20,13 @@ void DesktopApp::OnLeftButtonDown(WPARAM wp, LPARAM lp)
     pendingGuideAction_ = WidgetHit::None;
     POINT pt{ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
 
+    // 收录轻提示点击 → 把待收录文件移回各自归属页
+    if (HitTestCollectHint(pt))
+    {
+        CollectPendingToOwners();
+        return;
+    }
+
     // 圆点分页指示器点击 → 跳转到对应页面
     {
         const int dotPage = HitTestPageDotsIndicator(pt);

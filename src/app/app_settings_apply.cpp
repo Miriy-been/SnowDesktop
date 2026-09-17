@@ -1830,6 +1830,7 @@ void DesktopApp::LoadCategorySettingsAndApply()
     CategorySettings settings = CategorySettings::Defaults();
     LoadCategorySettings(GetCategorySettingsPath().c_str(), settings);
     categorySettings_ = settings;
+    LoadCategoryClaims(GetCategoryClaimsPath().c_str(), categoryClaims_);
 
     for (auto& c : containers_)
     {

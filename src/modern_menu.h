@@ -71,6 +71,9 @@ struct Item
     std::wstring inputText;
     /** Non-owning image kept alive by the caller for the synchronous menu. */
     HBITMAP image = nullptr;
+    /** 右对齐的次要说明（如归属页/数量），以暗色小字渲染；空则不绘制。
+     *  置于末尾以保持既有聚合初始化的位置兼容。 */
+    std::wstring rightLabel;
 };
 
 struct HoverInfo
@@ -111,6 +114,7 @@ inline void UpdateItemStates(std::vector<Item>& items, const std::vector<Item>& 
     for (size_t i = 0; i < items.size(); ++i)
     {
         items[i].label = values[i].label;
+        items[i].rightLabel = values[i].rightLabel;
         items[i].enabled = values[i].enabled;
         items[i].checked = values[i].checked;
         UpdateItemStates(items[i].children, values[i].children);

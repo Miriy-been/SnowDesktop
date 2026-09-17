@@ -93,7 +93,7 @@ SD_IPC_FIELDS(SettingsHostActions::Request,
     v.action, v.widgetInstanceId, v.value, v.boolValue,
     v.hotkeyTarget, v.modifiers, v.virtualKey);
 SD_IPC_FIELDS(PageLayoutEntry,
-    v.id, v.columns, v.rows, v.itemCount,
+    v.id, v.name, v.columns, v.rows, v.itemCount,
     v.widgetCount, v.role, v.monitorOrdinal, v.visible,
     v.activeOnLastMonitor);
 SD_IPC_FIELDS(PageLayoutSnapshot,

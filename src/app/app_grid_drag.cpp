@@ -575,6 +575,189 @@ void DesktopApp::MoveSelectedItemsToCell(GridCell targetCell)
 }
 
 /**
+ * @brief 获取桌面项目真实路径的扩展名（大写，含点号）。
+ *
+ * 快捷方式的显示名不含真实扩展名，必须经 PIDL 解析出实际文件路径。
+ */
+static std::wstring CollectItemExtensionUpper(const DesktopItem& item)
+{
+    wchar_t path[MAX_PATH]{};
+    if (item.absolutePidl.get() &&
+        SHGetPathFromIDListW(item.absolutePidl.get(), path))
+        return ToUpperInvariant(PathFindExtensionW(path));
+    return ToUpperInvariant(PathFindExtensionW(item.name.c_str()));
+}
+
+/**
+ * @brief 判断桌面项目是否为文件系统上的真实文件夹。
+ */
+static bool IsCollectFolderItem(const DesktopItem& item)
+{
+    wchar_t path[MAX_PATH]{};
+    if (!item.absolutePidl.get() ||
+        !SHGetPathFromIDListW(item.absolutePidl.get(), path))
+        return false;
+    const DWORD attrs = GetFileAttributesW(path);
+    return attrs != INVALID_FILE_ATTRIBUTES &&
+        (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+/**
+ * @brief 判断桌面项目是否命中收录分类（folders 按目录属性，其余按扩展名规则）。
+ */
+static bool IsCollectCategoryMatch(
+    const DesktopItem& item, const CategorySettings& categories,
+    const std::wstring& categoryId)
+{
+    if (categoryId == L"folders")
+        return IsCollectFolderItem(item);
+    return CategoryIdForExtension(categories,
+        CollectItemExtensionUpper(item)) == categoryId;
+}
+
+bool DesktopApp::IsCategoryMatchForItem(const DesktopItem& item,
+    const std::wstring& categoryId) const
+{
+    return IsCollectCategoryMatch(item, GetCategorySettings(), categoryId);
+}
+
+/**
+ * @brief 收录：把全部分类匹配的顶层桌面文件移动到目标页。
+ *
+ * 与“桌面文件”组件的无差别收集不同，收录只移动与所选分类匹配的
+ * 文件，且无论它们当前位于哪个页面，都汇聚到目标页，实现按类型的
+ * 页面级整理。目标页空间不足时放不下的文件保留原位（部分收录）。
+ */
+void DesktopApp::MoveCategoryItemsToPage(const std::wstring& categoryId,
+    const std::wstring& targetPageId)
+{
+    if (categoryId.empty() || targetPageId.empty()) return;
+    const GridPage* targetPage = nullptr;
+    for (const auto& page : gridPages_)
+    {
+        if (page.id == targetPageId)
+        {
+            targetPage = &page;
+            break;
+        }
+    }
+    if (!targetPage) return;
+
+    // 标记所有顶层项与组件的占用格（收录移动会跨页腾挪）。
+    std::unordered_set<std::wstring> usedSlots;
+    for (const auto& widget : widgets_)
+        if (WidgetOccupiesGridSlots(widget))
+            MarkGridArea(usedSlots, widget.gridCell, widget.gridSpan);
+    for (const auto& item : items_)
+    {
+        if (item.name.empty() || item.gridCell.pageId.empty()) continue;
+        if (item.gridCell.pageId == kDockPageId) continue;
+        if (IsItemInAnyWidget(item)) continue;
+        MarkGridArea(usedSlots, item.gridCell, item.gridSpan);
+    }
+
+    // 收集匹配项：保持现有 slot 顺序，目标页上的项无需移动。
+    std::vector<size_t> matches;
+    for (size_t i = 0; i < items_.size(); ++i)
+    {
+        const auto& item = items_[i];
+        if (item.name.empty() || item.gridCell.pageId.empty()) continue;
+        if (item.gridCell.pageId == kDockPageId ||
+            item.gridCell.pageId == targetPageId)
+            continue;
+        if (IsItemInAnyWidget(item)) continue;
+        if (!IsCollectCategoryMatch(item, GetCategorySettings(), categoryId))
+            continue;
+        matches.push_back(i);
+    }
+    if (matches.empty()) return;
+    std::sort(matches.begin(), matches.end(),
+        [&](size_t a, size_t b) { return items_[a].slot < items_[b].slot; });
+
+    // 页内顺序找空位（不溢出到其他页）；大图标跨度需先收敛到页宽高内。
+    int nextSlot = 0;
+    const int capacity = std::max(1, targetPage->columns * targetPage->rows);
+    for (const size_t i : matches)
+    {
+        auto& item = items_[i];
+        GridSpan span{
+            std::max(1, item.gridSpan.columns),
+            std::max(1, item.gridSpan.rows)
+        };
+        span.columns = std::clamp(span.columns, 1,
+            std::max(1, targetPage->columns));
+        span.rows = std::clamp(span.rows, 1,
+            std::max(1, targetPage->rows));
+        bool placed = false;
+        for (int slot = nextSlot; slot < capacity && !placed; ++slot)
+        {
+            GridCell candidate;
+            candidate.pageId = targetPageId;
+            candidate.column = slot / std::max(1, targetPage->rows);
+            candidate.row = slot % std::max(1, targetPage->rows);
+            if (candidate.column + span.columns <= targetPage->columns &&
+                candidate.row + span.rows <= targetPage->rows &&
+                !AreGridSlotsMarked(usedSlots, candidate, span))
+            {
+                item.gridCell = candidate;
+                item.slot = SlotFromCell(gridPages_, candidate);
+                MarkGridArea(usedSlots, candidate, span);
+                nextSlot = slot + 1;
+                placed = true;
+            }
+        }
+        // 目标页已满：保留原位（部分收录）。
+    }
+
+    LayoutItems();
+    SaveLayoutSlots();
+    if (hwnd_)
+        InvalidateRect(hwnd_, nullptr, TRUE);
+}
+
+std::wstring DesktopApp::GetCategoryClaimOwner(
+    const std::wstring& categoryId) const
+{
+    const auto it = categoryClaims_.find(categoryId);
+    if (it == categoryClaims_.end()) return {};
+    // 占用页可能已被删除：视为无占用（持久化条目在下次写入时清理）。
+    if (std::find(savedPageIds_.begin(), savedPageIds_.end(), it->second) ==
+        savedPageIds_.end())
+        return {};
+    return it->second;
+}
+
+void DesktopApp::SetCategoryClaim(const std::wstring& categoryId,
+    const std::wstring& pageId)
+{
+    if (categoryId.empty()) return;
+    if (pageId.empty())
+        categoryClaims_.erase(categoryId);
+    else
+        categoryClaims_[categoryId] = pageId;
+    SaveCategoryClaims(GetCategoryClaimsPath().c_str(), categoryClaims_);
+}
+
+void DesktopApp::ToggleCategoryCollection(const std::wstring& categoryId,
+    const std::wstring& targetPageId)
+{
+    if (categoryId.empty() || targetPageId.empty()) return;
+    if (GetCategoryClaimOwner(categoryId) == targetPageId)
+    {
+        // 取消收录：只解除占用关系，文件留在原地不做搬移——
+        // 避免“文件突然搬家”打断用户，分类仍可随时重新勾选。
+        SetCategoryClaim(categoryId, {});
+    }
+    else
+    {
+        MoveCategoryItemsToPage(categoryId, targetPageId);
+        SetCategoryClaim(categoryId, targetPageId);
+    }
+    // 收录/取消会改变轻提示的待归位数量。
+    InvalidatePageDotsIndicator();
+}
+
+/**
  * @brief 更新拖拽组的原点位置（用于计算拖拽时的偏移）。
  */
 void DesktopApp::UpdateDragGroupOrigin()

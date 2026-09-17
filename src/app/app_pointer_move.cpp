@@ -282,6 +282,12 @@ void DesktopApp::OnMouseMoveAt(
             dotsHoveredIndex_ = hoveredDot;
             InvalidatePageDotsIndicator();
         }
+        const bool hintHovered = HitTestCollectHint(current);
+        if (hintHovered != collectHintHovered_)
+        {
+            collectHintHovered_ = hintHovered;
+            InvalidatePageDotsIndicator();
+        }
     }
     if (HandleLargeIconPointerMove(current)) return;
     UpdateLargeIconHover();

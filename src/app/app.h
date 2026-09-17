@@ -918,6 +918,25 @@ private:
     void DrawPageDotsIndicator(ID2D1DeviceContext* ctx);
     /** @brief 仅重绘圆点指示器区域（含悬停页面名气泡），避免整屏刷新。 */
     void InvalidatePageDotsIndicator();
+    /** @brief 收录轻提示：当前显示页已收录、但文件散落在其它页的汇总。 */
+    struct CollectHintInfo
+    {
+        bool valid = false;
+        int totalPending = 0;
+        /** 待收录项 (categoryId, ownerPageId) 列表。 */
+        std::vector<std::pair<std::wstring, std::wstring>> pending;
+    };
+    /**
+     * @brief 汇总“当前显示页”作为归属页、散落在其它页的可归位文件。
+     *        仅在归属页显示（其它页面返回 invalid），保证提示有针对性。
+     */
+    [[nodiscard]] CollectHintInfo ComputeCollectHint() const;
+    /** @brief 命中测试收录轻提示胶囊。 */
+    [[nodiscard]] bool HitTestCollectHint(POINT clientPt) const;
+    /** @brief 绘制收录轻提示胶囊（圆点指示器旁）。 @param ctx D2D 设备上下文 */
+    void DrawCollectHint(ID2D1DeviceContext* ctx);
+    /** @brief 轻提示点击：把全部待收录文件移回各自归属页。 */
+    void CollectPendingToOwners();
     /** @brief 绘制换页通知覆盖层（左上角角标，类似电视台换台）。 @param ctx D2D 设备上下文 */
     void DrawPageNotify(
         ID2D1DeviceContext* ctx,
@@ -1995,7 +2014,8 @@ private:
             onHover = {},
         std::function<void(UINT, const std::wstring&,
             std::vector<snowdesktop::modern_menu::Item>&)>
-            onTextChanged = {});
+            onTextChanged = {},
+        const std::unordered_map<UINT, std::wstring>& itemRightLabels = {});
     void ConfigureModernMenuEventPump(
         snowdesktop::modern_menu::Options& options);
     BOOL InvokeShellMenuCommand(IContextMenu* menu,
@@ -2074,6 +2094,10 @@ private:
     /** @brief 从设置页新增页面。 */
     snowdesktop::PageLayoutOperationResult AddPageFromSettings(
         std::uint64_t expectedRevision);
+    /** @brief 从设置页按页面 ID 提交自定义页面名（空名恢复默认“第N页”）。 */
+    snowdesktop::PageLayoutOperationResult ApplyPageRenameFromSettings(
+        std::uint64_t expectedRevision,
+        const std::wstring& pageId, const std::wstring& name);
     /** @brief 根据显示器宽高比和对角线英寸计算舒适的推荐网格。 */
     GridSpan CalculateRecommendedGridDimensions(
         int aspectWidth, int aspectHeight, float diagonalInches) const;
@@ -2282,6 +2306,26 @@ private:
     bool IsGridAreaOccupiedByUnselected(const GridCell& cell, GridSpan span) const;
     /** @brief 移动选中项到指定的目标单元格。 @param targetCell 目标单元格 */
     void MoveSelectedItemsToCell(GridCell targetCell);
+    /** @brief 收录：把全部分类匹配的顶层桌面文件移动到目标页。 */
+    void MoveCategoryItemsToPage(const std::wstring& categoryId,
+        const std::wstring& targetPageId);
+    /** @brief 判断桌面项是否命中收录分类（folders 按目录属性，其余按扩展名）。 */
+    [[nodiscard]] bool IsCategoryMatchForItem(const DesktopItem& item,
+        const std::wstring& categoryId) const;
+    /**
+     * @brief 收录勾选切换：未占用→收录并占用（匹配文件移到本页）；
+     *        本页已占用→仅解除占用，文件原地不动。
+     * @param categoryId 分类 ID（含伪分类 folders）。
+     * @param targetPageId 右键所在页。
+     */
+    void ToggleCategoryCollection(const std::wstring& categoryId,
+        const std::wstring& targetPageId);
+    /** @brief 分类当前被哪个页面收录；无占用或占用页已删除时返回空。 */
+    [[nodiscard]] std::wstring GetCategoryClaimOwner(
+        const std::wstring& categoryId) const;
+    /** @brief 设置/清除分类占用并持久化（pageId 为空表示清除）。 */
+    void SetCategoryClaim(const std::wstring& categoryId,
+        const std::wstring& pageId);
     /** @brief 更新拖拽组的原点位置。 */
     void UpdateDragGroupOrigin();
     /** @brief 将选中项迁移到最后一个监视器的页面。 */
@@ -3390,6 +3434,11 @@ private:
         PersonalizationSettings::DarkPreset();
     bool dockSettingsLayoutCommitPending_ = false;
     CategorySettings categorySettings_ = CategorySettings::Defaults();
+    /** 分类收录占用（categoryId → pageId），持久化于 category-claims.json。 */
+    std::map<std::wstring, std::wstring> categoryClaims_;
+    /** 收录轻提示胶囊的最近绘制区域（client 坐标，供命中测试）。 */
+    RECT collectHintRect_{};
+    bool collectHintHovered_ = false;
     bool quickNavLightTheme_ = false;
     bool quickNavGlassTheme_ = false;
     float quickNavBlurRadius_ = 24.0f;
@@ -3536,6 +3585,7 @@ private:
     std::unordered_map<std::wstring, bool> settingsIconVisibility_;
     std::unordered_map<std::wstring, int> savedPageColumns_;
     std::unordered_map<std::wstring, int> savedPageRows_;
+    std::unordered_map<std::wstring, std::wstring> savedPageNames_;
     std::vector<std::wstring> savedPageIds_;
     RECT layoutWorkArea_{};
     float iconSpacingScale_ = 1.0f;

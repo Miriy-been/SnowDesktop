@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,12 @@ struct CategorySettings
 std::wstring GetCategorySettingsPath();
 bool LoadCategorySettings(const wchar_t* path, CategorySettings& settings);
 bool SaveCategorySettings(const wchar_t* path, const CategorySettings& settings);
+/** 分类收录占用（categoryId → pageId）的持久化；仅宿主进程读写。 */
+std::wstring GetCategoryClaimsPath();
+bool LoadCategoryClaims(const wchar_t* path,
+    std::map<std::wstring, std::wstring>& claims);
+bool SaveCategoryClaims(const wchar_t* path,
+    const std::map<std::wstring, std::wstring>& claims);
 void NormalizeCategorySettings(CategorySettings& settings);
 bool IsBuiltinCategoryRuleId(const std::wstring& categoryId);
 std::vector<std::wstring> ParseCategoryExtensionList(const std::wstring& text);

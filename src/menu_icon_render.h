@@ -55,6 +55,8 @@ struct ItemView
     MenuQuickIcon semanticIcon = MenuQuickIcon::FontGlyph;
     /** Optional non-owning premultiplied package image for the icon column. */
     HBITMAP image = nullptr;
+    /** 右对齐的次要说明文字；以暗色绘制，空则不绘制。 */
+    const wchar_t* rightLabel = L"";
 };
 
 struct ImageSourceView
