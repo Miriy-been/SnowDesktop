@@ -631,6 +631,11 @@ bool DesktopApp::UpdateDragPageNavigation(POINT clientPoint)
                 dragGroupOriginX_, dragGroupOriginY_ };
             pageOffset_ = dragDotIndex;
             ApplyPageMapping();
+            {
+                wchar_t flipLog[64]{};
+                swprintf_s(flipLog, L"FLIP dot offset=%d", dragDotIndex);
+                AppendDragOrderDebugLog(flipLog);
+            }
             if (hasInternalItems && !groupedEntryDrag && !dockEntryDrag)
                 MigrateSelectedItemsToLastMonitorPage();
             LayoutItems();
@@ -710,6 +715,11 @@ bool DesktopApp::UpdateDragPageNavigation(POINT clientPoint)
         dragGroupOriginX_, dragGroupOriginY_ };
     pageOffset_ = newOffset;
     ApplyPageMapping();
+    {
+        wchar_t flipLog[64]{};
+        swprintf_s(flipLog, L"FLIP edge offset=%d", newOffset);
+        AppendDragOrderDebugLog(flipLog);
+    }
     if (hasInternalItems && !groupedEntryDrag && !dockEntryDrag)
         MigrateSelectedItemsToLastMonitorPage();
     LayoutItems();

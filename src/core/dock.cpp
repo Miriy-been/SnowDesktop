@@ -1778,91 +1778,6 @@ HitRegion DockContainer::RedirectDragToNearestInsertion(
     return HitRegion::Empty;
 }
 
-void DockContainer::DrawInsertionPreview(
-    ID2D1DeviceContext* context, size_t insertIndex) const
-{
-    if (!context) return;
-    const bool folderSource = HasOnlyFolderDragSource();
-    const auto range =
-        snowdesktop::dock_folder_rules::
-            GroupInsertRange(
-                folderSource,
-                SortableEntryCount(),
-                FolderEntryCount());
-    const size_t begin = range.begin;
-    const size_t end = range.end;
-    insertIndex = std::clamp(insertIndex, begin, end);
-    RECT bounds = GetBounds();
-    ComPtr<ID2D1SolidColorBrush> brush;
-    context->CreateSolidColorBrush(D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.95f), &brush);
-    if (!brush) return;
-    const RECT viewport = GetScrollViewport(bounds);
-    if (folderSource)
-    {
-        const auto& slots = const_cast<DockContainer*>(this)->GetSlots();
-        RECT boundary = GetSearchRect();
-        if (insertIndex < end && insertIndex < slots.size() && slots[insertIndex])
-            boundary = slots[insertIndex]->GetBounds();
-        else if (end > begin && end - 1 < slots.size() && slots[end - 1])
-        {
-            boundary = slots[end - 1]->GetBounds();
-            if (IsVertical())
-                boundary.top = boundary.bottom;
-            else
-                boundary.left = boundary.right;
-        }
-        float axis = static_cast<float>(
-            IsVertical() ? boundary.top : boundary.left);
-        if (!IsEdgeAttached())
-        {
-            axis = IsVertical()
-                ? std::clamp(axis,
-                    static_cast<float>(viewport.top),
-                    static_cast<float>(viewport.bottom))
-                : std::clamp(axis,
-                    static_cast<float>(viewport.left),
-                    static_cast<float>(viewport.right));
-        }
-        if (IsVertical())
-            context->FillRoundedRectangle(D2D1::RoundedRect(
-                D2D1::RectF(static_cast<float>(bounds.left + 10), axis - 2.0f,
-                    static_cast<float>(bounds.right - 10), axis + 2.0f),
-                2.0f, 2.0f), brush.Get());
-        else
-            context->FillRoundedRectangle(D2D1::RoundedRect(
-                D2D1::RectF(axis - 2.0f, static_cast<float>(bounds.top + 10),
-                    axis + 2.0f, static_cast<float>(bounds.bottom - 10)),
-                2.0f, 2.0f), brush.Get());
-        return;
-    }
-    const int leadingOffset = app_ && app_->dockSettings_.showWindowsButton
-        ? ItemPitch() + ScaledSeparatorGap() : 0;
-    if (IsVertical())
-    {
-        float y = static_cast<float>(bounds.top + ScaledSpacing() / 2 +
-            leadingOffset + static_cast<LONG>(insertIndex * ItemPitch()) -
-            scrollOffset_);
-        y = std::clamp(y,
-            static_cast<float>(viewport.top),
-            static_cast<float>(viewport.bottom));
-        context->FillRoundedRectangle(D2D1::RoundedRect(
-            D2D1::RectF(static_cast<float>(bounds.left + 10), y - 2.0f,
-                static_cast<float>(bounds.right - 10), y + 2.0f), 2.0f, 2.0f),
-            brush.Get());
-        return;
-    }
-    float x = static_cast<float>(bounds.left + ScaledSpacing() / 2 +
-        leadingOffset + static_cast<LONG>(insertIndex * ItemPitch()) -
-        scrollOffset_);
-    x = std::clamp(x,
-        static_cast<float>(viewport.left),
-        static_cast<float>(viewport.right));
-    context->FillRoundedRectangle(D2D1::RoundedRect(
-        D2D1::RectF(x - 2.0f, static_cast<float>(bounds.top + 10),
-            x + 2.0f, static_cast<float>(bounds.bottom - 10)), 2.0f, 2.0f),
-        brush.Get());
-}
-
 void DockContainer::OnItemsDropped(const std::vector<Item*>& sourceItems, Container* origin,
     Slot* targetSlot, HitRegion region, int mods)
 {
@@ -2690,33 +2605,11 @@ std::wstring DockContainer::GetDragHint(Slot* slot, HitRegion region,
 
 void DockContainer::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion region)
 {
-    if (!slot || !ctx || region == HitRegion::Blocked) return;
-    if (region != HitRegion::Handoff &&
-        !snowdesktop::dock_drop_rules::
-            ShouldDrawSortableInsertionIndicator(
-                HasOnlyRecycleBinDragSource()))
-        return;
-    const auto& slots = GetSlots();
-    if (!slots.empty() && slot == slots.back().get())
-    {
-        DrawInsertionPreview(
-            ctx,
-            HasOnlyFolderDragSource()
-                ? FolderEntryBegin() +
-                    FolderEntryCount()
-                : SortableEntryCount());
-        return;
-    }
-    if (region == HitRegion::Handoff)
-    {
-        RECT bounds = slot->GetBounds();
-        app_->DrawD2DRoundedRectangle(ctx, bounds, 12.0f,
-            D2D1::ColorF(0.28f, 0.80f, 0.48f, 0.18f),
-            D2D1::ColorF(0.28f, 0.90f, 0.52f, 0.88f), 2.0f);
-        return;
-    }
-    DrawInsertionPreview(
-        ctx, InsertIndexFor(slot, region));
+    if (!slot || !ctx || region != HitRegion::Handoff) return;
+    RECT bounds = slot->GetBounds();
+    app_->DrawD2DRoundedRectangle(ctx, bounds, 12.0f,
+        D2D1::ColorF(0.28f, 0.80f, 0.48f, 0.18f),
+        D2D1::ColorF(0.28f, 0.90f, 0.52f, 0.88f), 2.0f);
 }
 
 RECT DockContainer::GetSearchRect() const

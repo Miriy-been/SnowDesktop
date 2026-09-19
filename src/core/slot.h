@@ -185,20 +185,6 @@ public:
      */
     void ExecuteDrop(HitRegion region, const std::vector<Item*>& sourceItems, Container* origin, int mods);
 
-    /**
-     * @brief 绘制拖放指示器
-     * @param ctx    D2D 设备上下文指针
-     * @param region 当前命中区域类型，决定指示器的绘制位置和样式
-     *
-     * 在 SortBefore / SortAfter 时绘制插入分隔线，
-     * 在 Handoff 时绘制高亮边框等视觉反馈。
-     */
-    void DrawDropIndicator(ID2D1DeviceContext* ctx, HitRegion region, float itemPad = 0.0f) const;
-    /** @brief 使用调用方已解析的排列方向绘制指示器，避免再次查询父容器。 */
-    void DrawDropIndicatorWithStyle(ID2D1DeviceContext* ctx,
-        HitRegion region, BarStyle insertionStyle,
-        float itemPad = 0.0f) const;
-
 private:
     Container* parent_; ///< 所属父容器指针
     RECT bounds_;       ///< 槽位边界矩形（屏幕像素坐标）

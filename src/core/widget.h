@@ -204,7 +204,6 @@ public:
     HitRegion HitTestDrag(POINT pt, Slot*& outSlot) override;
     std::wstring GetDragHint(Slot* slot, HitRegion region,
         const std::vector<Item*>& sourceItems, Container* origin, int mods) const override;
-    void DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion region) override;
     bool NeedsShellReloadAfterDrop() const override { return true; }
 
     // ── Member access — subclasses override ──────────────
@@ -932,11 +931,6 @@ private:
     mutable std::unique_ptr<Slot> sourceTabDropSlot_;
     mutable std::unique_ptr<Slot> hostedDropSlot_;
     mutable std::unique_ptr<Item> hostedDropItem_;
-    mutable RECT dropPreviewBounds_{};
-    mutable size_t dropPreviewIndex_ = 0;
-    mutable float dropPreviewItemPad_ = 0.0f;
-    mutable bool dropPreviewValid_ = false;
-    mutable bool dropPreviewSourceTab_ = false;
     mutable std::vector<SearchResultRef> groupSearchResults_;
     mutable std::wstring groupSearchCacheQuery_;
     mutable bool groupSearchCacheValid_ = false;

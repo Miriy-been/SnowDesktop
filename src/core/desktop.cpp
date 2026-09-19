@@ -498,10 +498,9 @@ std::wstring DesktopGrid::GetDragHint(Slot* slot, HitRegion region,
  * @param ctx D2D 设备上下文指针
  * @param slot 目标插槽
  * @param region 命中区域类型
- * @details 根据拖放操作的状态绘制预览：
+ * @details 落点方框与插入指示已移除，仅保留占用/拒绝提示：
  *          - Handoff 模式跳过绘制（由 RenderFrame 统一处理）
- *          - 有项目拖放时：调用 BuildDropPreviewList 构建预览列表并绘制
- *          - 无项目拖放（外部文件拖放）时：根据鼠标位置构建外部桌面预览列表并绘制
+ *          - 落点不合法或找不到空位时：绘制红色占用提示框
  */
 void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion region)
 {
@@ -588,9 +587,6 @@ void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion
                     continue;
                 }
 
-                app_->DrawD2DRoundedRectangle(ctx, bounds, 8.0f,
-                    D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.15f),
-                    D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.78f), 2.0f);
                 app_->MarkGridArea(usedSlots, landing, span);
                 ++startSlot;
             }
@@ -600,7 +596,7 @@ void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion
 
     // 文件组里的文件夹映射标签拖到桌面：此类载荷被归类为 Widget（hasWidgets），
     // BuildDropPreviewList 会直接返回空，因此这里按 ReleaseWidgetFromFileGroup
-    // 的同一落点算法绘制蓝色位置预览；有条目找不到空位时在指针格绘制红色占用提示。
+    // 的同一落点算法判断能否落地；有条目找不到空位时在指针格绘制红色占用提示。
     if (hasItemDrag &&
         dynamic_cast<FileGroup*>(app_->dragSession_.Source()) &&
         app_->dragSession_.SourceList().
@@ -643,19 +639,7 @@ void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion
                         widgetIndex, requested,
                         usedSlots, &span);
                 if (!landing)
-                {
                     anyFailed = true;
-                    continue;
-                }
-                RECT bounds = GetGridRect(
-                    app_->gridPages_, *landing, span);
-                app_->DrawD2DRoundedRectangle(
-                    ctx, bounds, 8.0f,
-                    D2D1::ColorF(
-                        0.39f, 0.66f, 1.0f, 0.15f),
-                    D2D1::ColorF(
-                        0.39f, 0.66f, 1.0f, 0.78f),
-                    2.0f);
             }
             if (anyFailed)
             {
@@ -714,13 +698,6 @@ void DesktopGrid::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion
         hasItemDrag,
         hasItemDrag ? app_->dragSession_.SourceList() : DragSourceList{},
         this, slot, region, mods, dragPoint);
-    // 从桌面网格拖出图标本身：拖拽过程不渲染落点预览方框，
-    // 仅以跟随鼠标的图标虚影作为反馈，释放后吸附到最近网格空位。
-    const bool desktopIconFreeDrag =
-        hasItemDrag &&
-        app_->dragSession_.Source() == app_->GetDesktopGrid();
-    if (!desktopIconFreeDrag)
-        app_->DrawDesktopDropPreviewList(ctx, preview);
     if (hasItemDrag && preview.Empty() && !preview.fileBacked &&
         app_->dragSession_.SourceList().origin == this)
     {

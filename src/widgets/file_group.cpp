@@ -168,35 +168,6 @@ size_t FileGroupSourceTabIndexAtPoint(
     return static_cast<size_t>(-1);
 }
 
-float ResolveInsertionItemPad(
-    Container* container, Slot* slot, HitRegion region)
-{
-    if (!container || !slot) return 0.0f;
-    const bool verticalBar =
-        container->GetInsertionStyle() == BarStyle::VBar;
-    const auto& slots = container->GetSlots();
-    for (size_t i = 0; i < slots.size(); ++i)
-    {
-        if (slots[i].get() != slot) continue;
-        if (region == HitRegion::SortBefore && i > 0)
-        {
-            return snowdesktop::widget_item_layout::
-                InsertionBoundaryPad(
-                    slots[i - 1]->GetBounds(),
-                    slots[i]->GetBounds(), verticalBar);
-        }
-        if (region == HitRegion::SortAfter && i + 1 < slots.size())
-        {
-            return snowdesktop::widget_item_layout::
-                InsertionBoundaryPad(
-                    slots[i]->GetBounds(),
-                    slots[i + 1]->GetBounds(), verticalBar);
-        }
-        break;
-    }
-    return 0.0f;
-}
-
 struct FileGroupButtonRects
 {
     RECT date{};
@@ -965,9 +936,6 @@ void FileGroup::InvalidateHostedView()
     visibleSourceIds_.clear();
     groupSearchCacheValid_ = false;
     groupSearchResults_.clear();
-    dropPreviewValid_ = false;
-    dropPreviewSourceTab_ = false;
-    dropPreviewItemPad_ = 0.0f;
     InvalidateSlots();
     for (auto& [id, source] : hostedSourceCache_)
     {
@@ -1590,9 +1558,6 @@ HitRegion FileGroup::HitTestDrag(
     POINT pt, Slot*& outSlot)
 {
     outSlot = nullptr;
-    dropPreviewValid_ = false;
-    dropPreviewSourceTab_ = false;
-    dropPreviewItemPad_ = 0.0f;
     RECT frame = GetFrameRect();
     if (!PtInRect(&frame, pt))
         return HitRegion::None;
@@ -1605,10 +1570,6 @@ HitRegion FileGroup::HitTestDrag(
         outSlot = BindTransientDragSlot(
             sourceTabDropSlot_, this, tab, sourceTab,
             SlotFeedbackRole::FileGroupSourceTab);
-        dropPreviewBounds_ = tab;
-        dropPreviewIndex_ = sourceTab;
-        dropPreviewValid_ = true;
-        dropPreviewSourceTab_ = true;
         return pt.x < tab.left +
                 (tab.right - tab.left) / 2
             ? HitRegion::SortBefore
@@ -1635,13 +1596,6 @@ HitRegion FileGroup::HitTestDrag(
                 searchSlot->GetBounds());
             hostedDropItem_ = std::move(item);
         }
-        dropPreviewBounds_ =
-            searchSlot->GetBounds();
-        dropPreviewIndex_ =
-            searchSlot->GetIndex();
-        dropPreviewItemPad_ = ResolveInsertionItemPad(
-            this, searchSlot, result);
-        dropPreviewValid_ = true;
         outSlot = BindTransientDragSlot(
             hostedDropSlot_, this,
             searchSlot->GetBounds(), searchSlot->GetIndex(),
@@ -1668,11 +1622,6 @@ HitRegion FileGroup::HitTestDrag(
         item->SetBounds(sourceSlot->GetBounds());
         hostedDropItem_ = std::move(item);
     }
-    dropPreviewBounds_ = sourceSlot->GetBounds();
-    dropPreviewIndex_ = sourceSlot->GetIndex();
-    dropPreviewItemPad_ = ResolveInsertionItemPad(
-        source, sourceSlot, result);
-    dropPreviewValid_ = true;
     outSlot = BindTransientDragSlot(
         hostedDropSlot_, this,
         sourceSlot->GetBounds(), sourceSlot->GetIndex(),
@@ -1685,65 +1634,20 @@ void FileGroup::DrawDropPreview(
     ID2D1DeviceContext* context, Slot* slot,
     HitRegion region)
 {
-    if (!context) return;
-    if (app_ &&
-        app_->dragSession_.SourceList().
-            UsesFileGroupSourceInsertion())
-    {
-        if (dropPreviewSourceTab_ &&
-            dropPreviewValid_ &&
-            (region == HitRegion::SortBefore ||
-             region == HitRegion::SortAfter))
-        {
-            const RECT bounds = dropPreviewBounds_;
-            const float width =
-                static_cast<float>(Cu(3.0f));
-            const float x =
-                static_cast<float>(
-                    region == HitRegion::SortBefore
-                        ? bounds.left
-                        : bounds.right) -
-                width / 2.0f;
-            ComPtr<ID2D1SolidColorBrush> brush;
-            if (SUCCEEDED(
-                    context->CreateSolidColorBrush(
-                        D2D1::ColorF(
-                            0.39f, 0.66f, 1.0f,
-                            0.92f),
-                        &brush)) &&
-                brush)
-            {
-                context->FillRectangle(
-                    D2D1::RectF(
-                        x,
-                        static_cast<float>(
-                            bounds.top + Cu(2.0f)),
-                        x + width,
-                        static_cast<float>(
-                            bounds.bottom - Cu(2.0f))),
-                    brush.Get());
-            }
-            return;
-        }
-        RECT target = GetFrameRect();
-        InflateRect(&target, Cu(3.0f), Cu(3.0f));
-        app_->DrawD2DRoundedRectangle(
-            context, target, static_cast<float>(Cu(10.0f)),
-            D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.14f),
-            D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.92f),
-            static_cast<float>(Cu(2.5f)));
-        return;
-    }
-    if (dropPreviewValid_)
-    {
-        Slot stableSlot(
-            this, dropPreviewBounds_,
-            dropPreviewIndex_);
-        stableSlot.DrawDropIndicator(
-            context, region, dropPreviewItemPad_);
-        return;
-    }
     (void)slot;
+    (void)region;
+    if (!context) return;
+    if (!app_ ||
+        !app_->dragSession_.SourceList().
+            UsesFileGroupSourceInsertion())
+        return;
+    RECT target = GetFrameRect();
+    InflateRect(&target, Cu(3.0f), Cu(3.0f));
+    app_->DrawD2DRoundedRectangle(
+        context, target, static_cast<float>(Cu(10.0f)),
+        D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.14f),
+        D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.92f),
+        static_cast<float>(Cu(2.5f)));
 }
 
 std::wstring FileGroup::GetDragHint(

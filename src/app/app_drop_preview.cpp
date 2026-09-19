@@ -476,22 +476,87 @@ DropPreviewList DesktopApp::BuildDropPreviewList(const DragSourceList& sourceLis
             sourceList.origin == containers_.front().get();
         if (desktopToDesktopMove && sourceList.entries.size() == 1)
         {
-            // 单个桌面图标：用“图标中心”吸附而非左上角（对齐 Windows 原生）。
-            // adjusted 是扣除抓取偏移后图标左上角的目标点，加上半格即图标
-            // 中心——只需把图标拖过约半格就切到下一行，不用精准对齐整格。
-            const POINT adjusted = GetDragTargetPoint(dropPoint);
-            const GridPage* pPage = GridPageFromPoint(adjusted);
-            if (pPage)
+            // 单个桌面图标：用“图标视觉中心”吸附而非左上角（对齐 Windows 原生）。
+            // ResolveDraggedBounds 是虚影当前的真实屏幕矩形（含抓取偏移），
+            // 其中心决定命中格——不会因抓取位置偏移而突然跳格。
+            const auto& singleEntry = sourceList.entries.front();
+            const RECT draggedBounds =
+                singleEntry.desktopIndex < items_.size()
+                ? dragSession_.ResolveDraggedBounds(
+                    singleEntry.desktopIndex,
+                    items_[singleEntry.desktopIndex].bounds,
+                    dropPoint)
+                : RECT{};
+            POINT center{};
+            const GridPage* pPage = GridPageFromPoint(dropPoint);
+            if (!IsRectEmptyRect(draggedBounds))
             {
-                POINT center{
-                    adjusted.x + pPage->cellWidth / 2,
-                    adjusted.y + pPage->cellHeight / 2
+                center = POINT{
+                    (draggedBounds.left + draggedBounds.right) / 2,
+                    (draggedBounds.top + draggedBounds.bottom) / 2
                 };
-                targetCell = CellFromPoint(center);
+                if (const GridPage* centerPage =
+                        GridPageFromPoint(center))
+                    pPage = centerPage;
+                if (pPage)
+                    targetCell = CellFromPoint(center);
             }
-            else
+            if (!pPage)
             {
                 targetCell = CellFromPointForDrag(dropPoint);
+            }
+            else if (!targetCell.pageId.empty())
+            {
+                // 命中格被其他图标占用时按原生语义分前后：拖拽图标中心位于
+                // 占用者读取方向中线（多行布局看垂直中线，单行布局看水平
+                // 中线）之后 → 插到占用者之后一格；之前 → 占用其格（占用者
+                // 及其后继顺延）。这样“落在两个图标之间”的区域稳定插在
+                // 两者之间，压在上半才插到上方。
+                const GridPage* targetPage =
+                    FindGridPage(gridPages_, targetCell.pageId);
+                const DesktopItem* occupier = nullptr;
+                if (targetPage)
+                {
+                    for (size_t i = 0; i < items_.size(); ++i)
+                    {
+                        if (i == singleEntry.desktopIndex) continue;
+                        const auto& item = items_[i];
+                        if (item.name.empty() || IsItemInAnyWidget(item))
+                            continue;
+                        if (item.gridCell.pageId == targetCell.pageId &&
+                            item.gridCell.column == targetCell.column &&
+                            item.gridCell.row == targetCell.row)
+                        {
+                            occupier = &items_[i];
+                            break;
+                        }
+                    }
+                }
+                if (occupier)
+                {
+                    const RECT occupierRect = GetGridRect(
+                        gridPages_, occupier->gridCell, occupier->gridSpan);
+                    const bool after = targetPage->rows > 1
+                        ? center.y >
+                            (occupierRect.top + occupierRect.bottom) / 2
+                        : center.x >
+                            (occupierRect.left + occupierRect.right) / 2;
+                    if (after)
+                    {
+                        const int rows =
+                            std::max(1, targetPage->rows);
+                        const int nextSlot =
+                            SlotFromCell(gridPages_, targetCell) + 1;
+                        if (nextSlot <
+                            targetPage->columns * rows)
+                        {
+                            targetCell = GridCell{
+                                targetCell.pageId,
+                                nextSlot / rows,
+                                nextSlot % rows };
+                        }
+                    }
+                }
             }
         }
         else if (internalMove)

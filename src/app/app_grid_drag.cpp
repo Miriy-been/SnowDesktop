@@ -544,9 +544,18 @@ void DesktopApp::ResolveDesktopInsertionCollisions(
             if (TryFindFreeCell(span, usedSlots, freeCell,
                     item.gridCell.pageId, item.slot))
             {
+                const GridCell collideFrom = item.gridCell;
                 item.gridCell = freeCell;
                 item.slot = SlotFromCell(gridPages_, freeCell);
                 MarkGridArea(usedSlots, freeCell, span);
+                {
+                    wchar_t collideLog[320]{};
+                    swprintf_s(collideLog, L"COLLIDE %s %s -> %s",
+                        item.name.c_str(),
+                        DragDebugCell(collideFrom).c_str(),
+                        DragDebugCell(freeCell).c_str());
+                    AppendDragOrderDebugLog(collideLog);
+                }
             }
             else
             {
@@ -793,60 +802,57 @@ void DesktopApp::MigrateSelectedItemsToLastMonitorPage()
     // Page turning during a large-icon drag is a preview only. Retain the
     // entire group's source cells/spans until its accepted drop commits them;
     // this also makes cancellation leave the original layout intact.
-    if (std::any_of(items_.begin(), items_.end(), [](const auto& item) { return item.selected && item.largeIcon; })) return;
-    if (gridPages_.empty() || lastMonitorPageId_.empty()) return;
+    if (std::any_of(items_.begin(), items_.end(), [](const auto& item) { return item.selected && item.largeIcon; }))
+    {
+        AppendDragOrderDebugLog(L"MIGRATE skip largeIcon-preview");
+        return;
+    }
+    if (gridPages_.empty() || lastMonitorPageId_.empty())
+    {
+        AppendDragOrderDebugLog(L"MIGRATE skip no-target-page");
+        return;
+    }
     const GridPage* targetPage = FindGridPage(gridPages_, lastMonitorPageId_);
     if (!targetPage) return;
 
-    std::unordered_set<std::wstring> usedSlots;
+    // 整组保形迁移：与松手落位（BuildDesktopLandings 多选分支）复用同一套
+    // 规划——把整组按内部相对位置当一块安置到目标页的空闲区域。逐项放置
+    // 在目标页有占用时会各自散开、再被落位固化，是跨页乱序的根源；整组
+    // 规划保证迁移结果与最终落位一致，顺序不会乱。
+    GridCell groupAnchor;
+    groupAnchor.pageId = lastMonitorPageId_;
+    int minColumn = INT_MAX, minRow = INT_MAX;
     for (const auto& item : items_)
     {
-        if (item.selected) continue;
-        if (item.name.empty()) continue;
-        if (item.gridCell.pageId == lastMonitorPageId_)
-            MarkGridArea(usedSlots, item.gridCell, item.gridSpan);
-    }
-    for (const auto& w : widgets_)
-        if (WidgetOccupiesGridSlots(w))
-            MarkGridArea(usedSlots, w.gridCell, w.gridSpan);
-
-    for (auto& item : items_)
-    {
         if (!item.selected) continue;
-        if (item.gridCell.pageId == lastMonitorPageId_) continue;
+        minColumn = std::min(minColumn, item.gridCell.column);
+        minRow = std::min(minRow, item.gridCell.row);
+    }
+    if (minColumn == INT_MAX) return;
+    groupAnchor.column = std::min(minColumn, std::max(0, targetPage->columns - 1));
+    groupAnchor.row = std::min(minRow, std::max(0, targetPage->rows - 1));
 
-        GridCell newCell;
-        newCell.pageId = lastMonitorPageId_;
-        newCell.column = std::min(item.gridCell.column, std::max(0, targetPage->columns - 1));
-        newCell.row = std::min(item.gridCell.row, std::max(0, targetPage->rows - 1));
+    std::vector<PendingGridMove> moves = BuildSelectedMove(groupAnchor);
+    if (moves.empty())
+        moves = BuildNearestSelectedMove(groupAnchor);
+    if (moves.empty())
+    {
+        // 目标页整组放不下：保留原位（与落位失败行为一致）。
+        AppendDragOrderDebugLog(L"MIGRATE group no-fit, keep source cells");
+        return;
+    }
 
-        GridSpan span = item.gridSpan;
-        span.columns = std::clamp(span.columns, 1, std::max(1, targetPage->columns));
-        span.rows = std::clamp(span.rows, 1, std::max(1, targetPage->rows));
-
-        if (!AreGridSlotsMarked(usedSlots, newCell, span))
-        {
-            MarkGridArea(usedSlots, newCell, span);
-            item.gridCell = newCell;
-            item.gridSpan = span;
-            continue;
-        }
-
-        bool found = false;
-        for (int r = 0; r < targetPage->rows && !found; ++r)
-        {
-            for (int c = 0; c < targetPage->columns && !found; ++c)
-            {
-                GridCell tryCell{ lastMonitorPageId_, c, r };
-                if (!AreGridSlotsMarked(usedSlots, tryCell, span))
-                {
-                    MarkGridArea(usedSlots, tryCell, span);
-                    item.gridCell = tryCell;
-                    item.gridSpan = span;
-                    found = true;
-                }
-            }
-        }
+    for (const auto& move : moves)
+    {
+        auto& item = items_[move.index];
+        const GridCell migrateFrom = item.gridCell;
+        item.gridCell = move.cell;
+        wchar_t migrateLog[320]{};
+        swprintf_s(migrateLog, L"MIGRATE %s %s -> %s",
+            item.name.c_str(),
+            DragDebugCell(migrateFrom).c_str(),
+            DragDebugCell(move.cell).c_str());
+        AppendDragOrderDebugLog(migrateLog);
     }
 }
 

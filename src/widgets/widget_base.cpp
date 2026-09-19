@@ -593,41 +593,6 @@ std::wstring WidgetContainer::GetDragHint(Slot* slot, HitRegion region,
 }
 
 /**
- * @brief 绘制拖放预览指示器
- * @param ctx D2D 设备上下文
- * @param slot 目标插槽
- * @param region 命中区域类型
- */
-void WidgetContainer::DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion region)
-{
-    if (!slot || !ctx) return;
-    const bool verticalBar =
-        GetInsertionStyle() == BarStyle::VBar;
-    float itemPad = 0.0f;
-    auto& slots = GetSlots();
-    for (size_t i = 0; i < slots.size(); ++i)
-    {
-        if (slots[i].get() != slot) continue;
-        if (region == HitRegion::SortBefore && i > 0)
-        {
-            itemPad = snowdesktop::widget_item_layout::
-                InsertionBoundaryPad(
-                    slots[i - 1]->GetBounds(),
-                    slots[i]->GetBounds(), verticalBar);
-        }
-        else if (region == HitRegion::SortAfter && i + 1 < slots.size())
-        {
-            itemPad = snowdesktop::widget_item_layout::
-                InsertionBoundaryPad(
-                    slots[i]->GetBounds(),
-                    slots[i + 1]->GetBounds(), verticalBar);
-        }
-        break;
-    }
-    slot->DrawDropIndicator(ctx, region, itemPad);
-}
-
-/**
  * @brief 计算拖放插入索引位置
  * @param targetSlot 目标插槽
  * @param region 命中区域（决定插入前/后）

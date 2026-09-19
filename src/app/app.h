@@ -2336,6 +2336,9 @@ private:
      * @return 调整后的目标点
      */
     POINT GetDragTargetPoint(POINT current) const;
+    // ── 拖拽顺序诊断（临时）：定位多选跨页乱序用，问题解决后移除 ──
+    static void AppendDragOrderDebugLog(const std::wstring& line);
+    static std::wstring DragDebugCell(const GridCell& cell);
     /** @brief 按来源锚定语义解析桌面请求格。 */
     GridCell ResolveDesktopRequestCell(
         const DragSourceList& sourceList, POINT current) const;
@@ -2549,8 +2552,6 @@ private:
         DropAction action) const;
     /** @brief 判断拖拽是否来自开启自动收集的桌面文件组件。 */
     bool IsAutoCollectFileCategorySource(const DragSourceList& sourceList) const;
-    /** @brief 在 D2D 上下文中绘制桌面放置预览列表。 @param ctx D2D 上下文 @param preview 放置预览列表 */
-    void DrawDesktopDropPreviewList(ID2D1DeviceContext* ctx, const DropPreviewList& preview);
     /** @brief 获取或重建缓存的桌面放置预览（位置/动作不变时复用缓存，避免每帧重建）。 */
     const DropPreviewList& GetCachedDesktopDropPreview(bool hasItemDrag, const DragSourceList& sourceList,
         Container* target, Slot* slot, HitRegion region, int mods, POINT dragPoint);
@@ -3861,6 +3862,11 @@ private:
     int presentedDragNavHoverSide_ = 0;
     int presentedDragNavHintSide_ = 0;
     RECT presentedDragNavHintBounds_{};
+    // 拖拽场景反馈的脏区跟踪：普通图标拖拽在桌面上只剩 Handoff 高亮框
+    // 会随目标变化，按新旧框区域做脏区提交，避免跨格整帧重绘。
+    RECT presentedDragHandoffBounds_{};
+    bool presentedDragDesktopScoped_ = false;
+    std::uint64_t presentedDragStaticSceneRevision_ = 0;
     int dragGroupOriginX_ = 0;
     int dragGroupOriginY_ = 0;
     // ── 拖放预览缓存（避免每帧重建 BuildDropPreviewList） ──

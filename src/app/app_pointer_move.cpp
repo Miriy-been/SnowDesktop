@@ -940,6 +940,14 @@ void DesktopApp::OnMouseMoveAt(
 
     if (dragSession_.IsActive() && !dragSession_.Items().empty())
     {
+        // 高报点率鼠标会排队大量 WM_MOUSEMOVE，而每条消息都用 GetCursorPos
+        // 的实时采样覆盖坐标：同一采样点重复走完整拖拽管线（目标解析、
+        // 虚影同步、提示窗口）全是幂等开销。采样点与上次处理结果一致时
+        // 直接跳过，消除高速移动时的重复处理。
+        if (oldMouse.x == current.x && oldMouse.y == current.y &&
+            dragSession_.CurrentPoint().x == current.x &&
+            dragSession_.CurrentPoint().y == current.y)
+            return;
         dragSession_.UpdatePoint(current);
         int currentMods = 0;
         if (GetAsyncKeyState(VK_CONTROL) & 0x8000) currentMods |= MK_CONTROL;
@@ -1268,29 +1276,18 @@ void DesktopApp::OnMouseMoveAt(
             navHotEdgeHover_ != oldHotEdge ||
             movingHotEdgeHint)
         {
-            RECT prevEdge{};
-            RECT nextEdge{};
-            GetNavHotEdgeRects(prevEdge, nextEdge);
             RECT dirty{};
             auto addDirty = [&](RECT value) {
                 if (IsRectEmptyRect(value)) return;
                 if (IsRectEmptyRect(dirty)) dirty = value;
                 else UnionRect(&dirty, &dirty, &value);
             };
-            if (oldHotEdge)
-            {
-                addDirty(oldHover < 0 ? prevEdge : nextEdge);
-                if (oldHintVisible)
-                    addDirty(GetPageNavHotEdgeHintBounds(
-                        oldHover, oldMouse));
-            }
-            if (navHotEdgeHover_)
-            {
-                addDirty(navHoverSide_ < 0 ? prevEdge : nextEdge);
-                if (navHotEdgeHintVisible_)
-                    addDirty(GetPageNavHotEdgeHintBounds(
-                        navHoverSide_, current));
-            }
+            if (oldHotEdge && oldHintVisible)
+                addDirty(GetPageNavHotEdgeHintBounds(
+                    oldHover, oldMouse));
+            if (navHotEdgeHover_ && navHotEdgeHintVisible_)
+                addDirty(GetPageNavHotEdgeHintBounds(
+                    navHoverSide_, current));
             InflateRect(&dirty, 4, 4);
             if (!IsRectEmptyRect(dirty))
                 (void)PresentDesktopForegroundComposition(dirty);

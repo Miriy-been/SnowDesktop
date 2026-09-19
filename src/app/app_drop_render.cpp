@@ -105,24 +105,6 @@ bool DesktopApp::ApplyPendingFolderPlacements(
     return changed;
 }
 
-void DesktopApp::DrawDesktopDropPreviewList(ID2D1DeviceContext* ctx,
-    const DropPreviewList& preview)
-{
-    if (!ctx) return;
-    for (const auto& landing : preview.landings)
-    {
-        if (landing.kind != DropLandingKind::DesktopCell) continue;
-        GridSpan span{
-            std::max(1, landing.span.columns),
-            std::max(1, landing.span.rows)
-        };
-        RECT targetRect = GetGridRect(gridPages_, landing.cell, span);
-        DrawD2DRoundedRectangle(ctx, targetRect, 6.0f,
-            D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.12f),
-            D2D1::ColorF(0.39f, 0.66f, 1.0f, 0.50f), 2.0f);
-    }
-}
-
 /**
  * @brief 获取或重建缓存的桌面放置预览。
  *

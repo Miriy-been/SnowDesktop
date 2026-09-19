@@ -443,20 +443,11 @@ void LuaLogicalSlotContainer::DrawDropPreview(
 {
     if (!slot) return;
     const auto surface = Surface();
-    if (!surface)
-    {
-        slot->DrawDropIndicatorWithStyle(
-            context, region, BarStyle::HBar);
-        return;
-    }
+    if (!surface) return;
     const BarStyle insertionStyle =
         InsertionStyleForSurface(*surface);
-    const bool styledSurface = DrawDropSurface(context, *surface);
-    const bool styledIndicator = DrawDropIndicator(
+    DrawDropSurface(context, *surface);
+    DrawDropIndicator(
         context, *surface, slot, region,
         insertionStyle);
-    if (!styledIndicator &&
-        !(region == HitRegion::Empty && styledSurface))
-        slot->DrawDropIndicatorWithStyle(
-            context, region, insertionStyle);
 }

@@ -139,7 +139,6 @@ public:
     size_t GetDropInsertIndex(Slot* slot, HitRegion region) const
     { return InsertIndexFor(slot, region); }
     size_t GetInsertIndexAtPoint(POINT pt) const;
-    void DrawInsertionPreview(ID2D1DeviceContext* context, size_t insertIndex) const;
 
 private:
     enum class MagnificationZone

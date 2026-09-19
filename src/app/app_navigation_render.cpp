@@ -169,24 +169,6 @@ void DesktopApp::DrawPageNavHotEdgeHint(
         1.0f, static_cast<float>(page->dpiX) /
             static_cast<float>(USER_DEFAULT_SCREEN_DPI));
 
-    RECT previousEdge{};
-    RECT nextEdge{};
-    GetNavHotEdgeRects(previousEdge, nextEdge);
-
-    ComPtr<ID2D1SolidColorBrush> accentBrush;
-    ctx->CreateSolidColorBrush(
-        D2D1::ColorF(0.18f, 0.45f, 0.90f, 0.72f),
-        &accentBrush);
-    if (accentBrush)
-    {
-        if (rails.previous)
-            ctx->FillRectangle(
-                ToD2DRect(previousEdge), accentBrush.Get());
-        if (rails.next)
-            ctx->FillRectangle(
-                ToD2DRect(nextEdge), accentBrush.Get());
-    }
-
     const bool hoveredDirectionVisible = hovering &&
         (navHoverSide_ < 0 ? rails.previous : rails.next);
     if (!hoveredDirectionVisible ||

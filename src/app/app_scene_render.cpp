@@ -320,12 +320,6 @@ void DesktopApp::DrawDynamicOverlays(
                 static_cast<float>(
                     ScaleWidgetCu(2.5f, cellScale)));
         }
-        else if (widgetDockTarget_)
-        {
-            if (widgetDockTargetContainer_)
-                widgetDockTargetContainer_->DrawInsertionPreview(
-                    ctx, widgetDockInsertIndex_);
-        }
         // 拖拽/缩放跟随：组件本体已渲染在预览位置（bounds 跟随），
         // 不再绘制落点占位框（v1.0.3 风格）。
     }
@@ -466,17 +460,7 @@ void DesktopApp::DrawDynamicOverlays(
         }
         else
         {
-            if (popupTarget && targetSlot &&
-                (targetRegion == HitRegion::SortBefore ||
-                 targetRegion == HitRegion::SortAfter))
-            {
-                targetSlot->DrawDropIndicator(ctx, targetRegion,
-                    static_cast<float>(kCollectionPopupGapX) * 0.5f);
-            }
-            else
-            {
-                targetContainer->DrawDropPreview(ctx, targetSlot, targetRegion);
-            }
+            targetContainer->DrawDropPreview(ctx, targetSlot, targetRegion);
         }
         if (clipped) ctx->PopAxisAlignedClip();
         endPopupAnimationTransform(

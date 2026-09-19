@@ -5,6 +5,33 @@
 
 // Drag-scene invalidation, presentation and session teardown.
 
+void DesktopApp::AppendDragOrderDebugLog(const std::wstring& line)
+{
+    wchar_t exePath[MAX_PATH]{};
+    if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) == 0)
+        return;
+    const std::filesystem::path logPath =
+        std::filesystem::path(exePath).parent_path() /
+        L"drag_order_debug.log";
+    std::ofstream log(logPath, std::ios::binary | std::ios::app);
+    if (!log) return;
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    wchar_t stamp[40]{};
+    swprintf_s(stamp, L"[%02u:%02u:%02u.%03u] ",
+        st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    log << WideToUtf8(std::wstring(stamp) + line) << "\n";
+}
+
+std::wstring DesktopApp::DragDebugCell(const GridCell& cell)
+{
+    wchar_t buf[160]{};
+    swprintf_s(buf, L"[%s](%d,%d)",
+        cell.pageId.c_str(), cell.column, cell.row);
+    return buf;
+}
+
+
 bool DesktopApp::IsPointOverWidgetChrome(POINT pt) const
 {
     for (auto& c : containers_)
@@ -130,6 +157,9 @@ void DesktopApp::PresentPointerInteractionFrame(
     {
         presentedDragFeedbackRevision_ = 0;
         presentedDragNavHoverSide_ = 0;
+        presentedDragHandoffBounds_ = {};
+        presentedDragDesktopScoped_ = false;
+        presentedDragStaticSceneRevision_ = 0;
     }
     snowdesktop::widget_composition_layer_rules::
         WidgetDragFeedbackState widgetDragFeedback{};
@@ -202,9 +232,74 @@ void DesktopApp::PresentPointerInteractionFrame(
         (!widgetPreviewActive || !widgetInteractionPresented) &&
         hwnd_ && IsWindow(hwnd_))
     {
-        InvalidateRect(hwnd_, nullptr, FALSE);
-        PresentDesktopPointerUpdate();
-        desktopFallbackPresented = true;
+        // 蓝色落点框移除后，普通桌面图标拖拽的场景反馈只剩 Handoff 高亮框；
+        // 请求格（anchor）跨格变化不再对应任何绘制内容。若仍按修订号整窗
+        // 失效并同步重绘，拖拽跨格时会反复整帧重绘造成卡顿。这里仅当本次
+        // 与上次的反馈都是“桌面目标 + 非大图标”时按新旧 Handoff 框区域做
+        // 脏区提交；大图标拖拽（红色占用框随指针格变化）与组件/集合组等
+        // 其他反馈保持整窗提交。
+        const bool largeIconDrag = itemDragActive &&
+            std::any_of(
+                dragSession_.Items().begin(),
+                dragSession_.Items().end(),
+                [](Item* item) {
+                    auto* icon = dynamic_cast<DesktopIcon*>(item);
+                    const auto* data =
+                        icon ? icon->GetDesktopItem() : nullptr;
+                    return data && data->largeIcon;
+                });
+        const Container* dragTarget =
+            dragSession_.TargetContainer();
+        // 场景内容修订号变化（拖拽中翻页、布局迁移等）必须整帧提交一次，
+        // 否则新页面不会实时显示——脏区化只对“场景未变、仅跨格”的情况生效。
+        const std::uint64_t staticSceneRevision =
+            dragSession_.StaticSceneRevision();
+        const bool sceneChanged =
+            staticSceneRevision !=
+            presentedDragStaticSceneRevision_;
+        const bool desktopScopedTarget =
+            itemDragActive && !largeIconDrag &&
+            !sceneChanged &&
+            (!dragTarget || dragTarget == GetDesktopGrid());
+        RECT scopedDirty{};
+        bool canScope = desktopScopedTarget &&
+            presentedDragDesktopScoped_;
+        if (desktopScopedTarget)
+        {
+            if (!IsRectEmptyRect(presentedDragHandoffBounds_))
+                scopedDirty = presentedDragHandoffBounds_;
+            if (dragSession_.TargetRegion() == HitRegion::Handoff &&
+                dragSession_.TargetSlot())
+            {
+                const RECT handoff =
+                    dragSession_.TargetSlot()->GetBounds();
+                if (IsRectEmptyRect(scopedDirty))
+                    scopedDirty = handoff;
+                else
+                    UnionRect(&scopedDirty, &scopedDirty, &handoff);
+            }
+        }
+        presentedDragHandoffBounds_ =
+            desktopScopedTarget &&
+                dragSession_.TargetRegion() == HitRegion::Handoff &&
+                dragSession_.TargetSlot()
+            ? dragSession_.TargetSlot()->GetBounds()
+            : RECT{};
+        presentedDragDesktopScoped_ = desktopScopedTarget;
+        if (canScope && !IsRectEmptyRect(scopedDirty))
+        {
+            InflateRect(&scopedDirty, 4, 4);
+            InvalidateRect(hwnd_, &scopedDirty, FALSE);
+            PresentDesktopPointerUpdate();
+        }
+        else if (!(canScope && IsRectEmptyRect(scopedDirty)))
+        {
+            // 反馈形态切换（桌面 ↔ 组件/大图标）或首次拖拽帧：整窗提交。
+            InvalidateRect(hwnd_, nullptr, FALSE);
+            PresentDesktopPointerUpdate();
+            desktopFallbackPresented = true;
+        }
+        presentedDragStaticSceneRevision_ = staticSceneRevision;
     }
     if (marqueeActive_ && marqueeFullPresentPending_ &&
         desktopFallbackPresented)

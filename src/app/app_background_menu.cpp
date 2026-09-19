@@ -1656,7 +1656,6 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
     std::wstring clickedMonitorId = clickedPage ? clickedPage->monitorId : L"";
     std::wstring firstPageId = savedPageIds_.empty() ? L"" : savedPageIds_[0];
     bool isFirstPage = !clickedPageId.empty() && clickedPageId == firstPageId;
-    int maxOff = MaxPageOffset();
     const size_t monitorCount = gridPages_.size();
     // 单物理屏同时承担首屏和末屏，也应提供末屏的分页导航菜单。
     const bool showPageNavigation = !isFirstPage || monitorCount == 1;
@@ -1681,56 +1680,6 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
             AppendMenuW(menu, MF_POPUP,
                 reinterpret_cast<UINT_PTR>(pinPageMenu), _LW("app.menu.page_pin_both"));
         }
-        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    }
-
-    HMENU jumpMenu = nullptr;
-    if (showPageNavigation)
-    {
-        // 当前右键点击的显示器显示的页索引
-        int clickedPageIdx = 0;
-        {
-            auto it = std::ranges::find(savedPageIds_, clickedPageId);
-            if (it != savedPageIds_.end())
-                clickedPageIdx = static_cast<int>(it - savedPageIds_.begin());
-        }
-
-        if (pageOffset_ > 0)
-            AppendMenuW(menu, MF_STRING, kContextPagePrev, _LW("app.menu.prev_page"));
-        if (pageOffset_ < maxOff)
-            AppendMenuW(menu, MF_STRING, kContextPageNext, _LW("app.menu.next_page"));
-
-        jumpMenu = CreatePopupMenu();
-        if (jumpMenu)
-        {
-            // 计算当前所有显示器上显示的页面索引
-            std::vector<size_t> monitorOrder = BuildMonitorRenderOrder();
-            std::unordered_set<int> pagesOnMonitors;
-            for (size_t mi = 0; mi < monitorOrder.size(); ++mi)
-            {
-                int displayIdx = static_cast<int>(mi);
-                if (mi == monitorOrder.size() - 1)
-                    displayIdx += pageOffset_;
-                if (displayIdx < static_cast<int>(savedPageIds_.size()))
-                    pagesOnMonitors.insert(displayIdx);
-            }
-
-
-            for (int i = 0; static_cast<size_t>(i) < savedPageIds_.size(); ++i)
-            {
-                if (!PageHasContent(savedPageIds_[i]) && !pagesOnMonitors.contains(i)) continue;
-                std::wstring label = GetPageDisplayName(i);
-                UINT flags = MF_STRING;
-                if (pagesOnMonitors.contains(i))
-                    flags |= MF_GRAYED;
-                if (i == clickedPageIdx)
-                    flags |= MF_CHECKED;
-                AppendMenuW(jumpMenu, flags,
-                    kContextPageJumpFirst + static_cast<UINT>(i), label.c_str());
-            }
-            AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(jumpMenu), _LW("app.menu.goto_page"));
-        }
-
         AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     }
 
@@ -1947,13 +1896,7 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
         SetMenuItemIcon(menu, reinterpret_cast<UINT_PTR>(pinPageMenu), L"");
     }
     SetMenuItemIcon(menu, kContextSettingsCommand, L"");
-    if (pageOffset_ > 0)
-        SetMenuItemIcon(menu, kContextPagePrev, L"");
-    if (pageOffset_ < maxOff)
-        SetMenuItemIcon(menu, kContextPageNext, L"");
     SetMenuItemIcon(menu, kContextPageAdd, L"");
-    if (jumpMenu)
-        SetMenuItemIcon(menu, reinterpret_cast<UINT_PTR>(jumpMenu), L"");
 
     SetForegroundWindow(hwnd_);
     snowdesktop::component_preview::Window previewWindow;
@@ -2169,7 +2112,6 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
     if (widgetMenu) DestroyMenu(widgetMenu);
     if (displaySettingsMenu) DestroyMenu(displaySettingsMenu);
     if (pinPageMenu) DestroyMenu(pinPageMenu);
-    if (jumpMenu) DestroyMenu(jumpMenu);
     DestroyMenu(menu);
     newMenuContextMenu_.Reset();
     ClearMenuIcons();
@@ -2196,16 +2138,6 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
     {
         SetIconSpacing(
             static_cast<float>(command - kContextSpacingPresetFirst) / 100.0f);
-    }
-    else if (command >= kContextPageJumpFirst && command <= kContextPageJumpLast)
-    {
-        int pageIdx = static_cast<int>(command - kContextPageJumpFirst);
-        if (pageIdx >= 0 && static_cast<size_t>(pageIdx) < savedPageIds_.size())
-        {
-            int visiblePageCount = static_cast<int>(std::min(savedPageIds_.size(), gridPages_.size()));
-            int targetOffset = pageIdx - (visiblePageCount - 1);
-            JumpToPageOffset(targetOffset);
-        }
     }
     else
     {
@@ -2263,8 +2195,6 @@ void DesktopApp::ShowBackgroundContextMenu(POINT screenPoint)
             ShowSettingsWindow(snowdesktop::SettingsRoute::ForPage(
                 snowdesktop::SettingsPage::Personalization));
             break;
-        case kContextPagePrev: NavigatePageOffset(-1); break;
-        case kContextPageNext: NavigatePageOffset(1); break;
         case kContextPageAdd: AddNewPage(); break;
         default: break;
         }

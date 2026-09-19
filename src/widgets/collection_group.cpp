@@ -906,6 +906,7 @@ void CollectionGroup::DrawDropPreview(
     ID2D1DeviceContext* ctx, Slot* slot,
     HitRegion region)
 {
+    (void)slot;
     if (!ctx) return;
     if (app_ &&
         app_->dragSession_.SourceList().
@@ -920,10 +921,7 @@ void CollectionGroup::DrawDropPreview(
             D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.14f),
             D2D1::ColorF(1.0f, 0.72f, 0.12f, 0.92f),
             static_cast<float>(Cu(2.5f)));
-        return;
     }
-    WidgetContainer::DrawDropPreview(
-        ctx, slot, region);
 }
 
 std::wstring CollectionGroup::GetDragHint(
