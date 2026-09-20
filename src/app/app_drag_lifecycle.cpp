@@ -5,33 +5,6 @@
 
 // Drag-scene invalidation, presentation and session teardown.
 
-void DesktopApp::AppendDragOrderDebugLog(const std::wstring& line)
-{
-    wchar_t exePath[MAX_PATH]{};
-    if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) == 0)
-        return;
-    const std::filesystem::path logPath =
-        std::filesystem::path(exePath).parent_path() /
-        L"drag_order_debug.log";
-    std::ofstream log(logPath, std::ios::binary | std::ios::app);
-    if (!log) return;
-    SYSTEMTIME st{};
-    GetLocalTime(&st);
-    wchar_t stamp[40]{};
-    swprintf_s(stamp, L"[%02u:%02u:%02u.%03u] ",
-        st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-    log << WideToUtf8(std::wstring(stamp) + line) << "\n";
-}
-
-std::wstring DesktopApp::DragDebugCell(const GridCell& cell)
-{
-    wchar_t buf[160]{};
-    swprintf_s(buf, L"[%s](%d,%d)",
-        cell.pageId.c_str(), cell.column, cell.row);
-    return buf;
-}
-
-
 bool DesktopApp::IsPointOverWidgetChrome(POINT pt) const
 {
     for (auto& c : containers_)
@@ -203,10 +176,37 @@ void DesktopApp::PresentPointerInteractionFrame(
             // Grid, Dock and group feedback lives on the shared foreground
             // surface. Redraw it only when the logical target changes; plain
             // pointer movement inside one target has no visual work.
-            RECT client{};
-            GetClientRect(hwnd_, &client);
-            widgetInteractionPresented =
-                PresentDesktopForegroundComposition(client);
+            // 蓝/红落点占位框移除后，纯桌面目标（无 Dock、组、边缘提示）
+            // 的网格跨格与像素偏移变化已没有前景绘制内容——组件本体在
+            // 独立 DComp 表面/预览窗口中跟随。此时跳过整帧前景重呈现，
+            // 仅在本次或上次反馈携带真实前景视觉（Dock 高亮、组级橙框、
+            // 边缘翻页提示）时才整帧提交，离开这些目标时也能正确清除。
+            const auto hasForegroundVisual =
+                [](const snowdesktop::widget_composition_layer_rules::
+                    WidgetDragFeedbackState& feedback) {
+                    return feedback.dockTarget ||
+                        feedback.dockOwner != 0 ||
+                        feedback.groupTargetIndex !=
+                            static_cast<std::size_t>(-1) ||
+                        feedback.navigationSide != 0;
+                };
+            if (hasForegroundVisual(widgetDragFeedback) ||
+                hasForegroundVisual(presentedWidgetDragFeedback_))
+            {
+                RECT client{};
+                GetClientRect(hwnd_, &client);
+                widgetInteractionPresented =
+                    PresentDesktopForegroundComposition(client);
+            }
+            else
+            {
+                // 无前景绘制内容时跳过前景表面重绘，但组件视觉平移等
+                // DComp 更新仍必须每采样点同步提交（拖拽跟手依赖
+                // Commit；f29a882 教训：反馈不允许晚一帧）。
+                CommitCompositionAnimationFrame();
+                widgetInteractionPresented =
+                    FlushPendingCompositionCommit();
+            }
         }
         else
         {

@@ -950,8 +950,128 @@ void DesktopApp::OnRightButtonUp(LPARAM lp)
                      ContextMenuKind::DesktopItem)
             ShowItemContextMenu(screenPt, hit);
     }
+    else if (IsPointOverPageDotsIndicator(pt))
+        ShowPageDotsContextMenu(screenPt);
     else
         ShowBackgroundContextMenu(screenPt);
+}
+
+/**
+ * @brief 命中测试分页圆点指示器胶囊整体（含少量容差）。
+ *
+ * 与 HitTestPageDotsIndicator（逐圆点）不同，本函数把整个胶囊视作
+ * 右键目标，圆点之间的空隙也可弹出指示器菜单。
+ */
+bool DesktopApp::IsPointOverPageDotsIndicator(POINT pt) const
+{
+    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    if (!info.valid) return false;
+    RECT capsule = info.capsule;
+    InflateRect(&capsule, 4, 4);
+    return PtInRect(&capsule, pt) != FALSE;
+}
+
+/**
+ * @brief 分页圆点指示器右键菜单：垂直/水平位置（单选）+ 打开设置。
+ *
+ * 与 Dock 菜单同一套模式：ShowModernMenu 展示 HMENU，选择后立即
+ * 修改 GeneralSettings、持久化并通过 settingsController 同步到设置中心。
+ */
+void DesktopApp::ShowPageDotsContextMenu(POINT screenPoint)
+{
+    PrepareMenuIconsForPoint(screenPoint);
+
+    HMENU menu = CreatePopupMenu();
+    HMENU verticalMenu = CreatePopupMenu();
+    HMENU horizontalMenu = CreatePopupMenu();
+    if (!menu || !verticalMenu || !horizontalMenu)
+    {
+        if (verticalMenu) DestroyMenu(verticalMenu);
+        if (horizontalMenu) DestroyMenu(horizontalMenu);
+        if (menu) DestroyMenu(menu);
+        return;
+    }
+
+    AppendMenuW(verticalMenu, MF_STRING,
+        kContextDotsVerticalBottom, _LW("app.settings.page_dots_bottom"));
+    AppendMenuW(verticalMenu, MF_STRING,
+        kContextDotsVerticalTop, _LW("app.settings.page_dots_top"));
+    CheckMenuRadioItem(verticalMenu,
+        kContextDotsVerticalBottom, kContextDotsVerticalTop,
+        kContextDotsVerticalBottom +
+            static_cast<UINT>(generalSettings_.pageDotsVertical),
+        MF_BYCOMMAND);
+
+    AppendMenuW(horizontalMenu, MF_STRING,
+        kContextDotsHorizontalCenter, _LW("app.settings.page_dots_center"));
+    AppendMenuW(horizontalMenu, MF_STRING,
+        kContextDotsHorizontalLeft, _LW("app.settings.page_dots_left"));
+    AppendMenuW(horizontalMenu, MF_STRING,
+        kContextDotsHorizontalRight, _LW("app.settings.page_dots_right"));
+    CheckMenuRadioItem(horizontalMenu,
+        kContextDotsHorizontalCenter, kContextDotsHorizontalRight,
+        kContextDotsHorizontalCenter +
+            static_cast<UINT>(generalSettings_.pageDotsHorizontal),
+        MF_BYCOMMAND);
+
+    AppendMenuW(menu, MF_POPUP,
+        reinterpret_cast<UINT_PTR>(verticalMenu),
+        _LW("app.settings.page_dots_vertical"));
+    AppendMenuW(menu, MF_POPUP,
+        reinterpret_cast<UINT_PTR>(horizontalMenu),
+        _LW("app.settings.page_dots_horizontal"));
+    AppendMenuW(menu, MF_STRING,
+        kContextDotsDetailedSettings, _LW("app.interact.detailed_settings"));
+
+    SetMenuItemIcon(menu, reinterpret_cast<UINT_PTR>(verticalMenu),
+        L"\uF0B2");
+    SetMenuItemIcon(menu, reinterpret_cast<UINT_PTR>(horizontalMenu),
+        L"\uF58D");
+    SetMenuItemIcon(menu, kContextDotsDetailedSettings, L"\uF013");
+
+    SetForegroundWindow(hwnd_);
+    const UINT command = ShowModernMenu(menu, screenPoint, hwnd_);
+    DestroyMenu(menu);
+    ClearMenuIcons();
+    RestoreDesktopWindowLayer();
+    RestoreInteractionInputFocus();
+
+    switch (command)
+    {
+    case kContextDotsVerticalTop:
+    case kContextDotsVerticalBottom:
+    {
+        const int value =
+            static_cast<int>(command - kContextDotsVerticalBottom);
+        if (generalSettings_.pageDotsVertical == value) return;
+        generalSettings_.pageDotsVertical = value;
+        break;
+    }
+    case kContextDotsHorizontalLeft:
+    case kContextDotsHorizontalCenter:
+    case kContextDotsHorizontalRight:
+    {
+        const int value =
+            static_cast<int>(command - kContextDotsHorizontalCenter);
+        if (generalSettings_.pageDotsHorizontal == value) return;
+        generalSettings_.pageDotsHorizontal = value;
+        break;
+    }
+    case kContextDotsDetailedSettings:
+        if (settingsController_)
+            (void)settingsController_->SynchronizeGeneral(generalSettings_);
+        ShowSettingsWindow(snowdesktop::SettingsRoute::ForPage(
+            snowdesktop::SettingsPage::DesktopPages));
+        return;
+    default:
+        return;
+    }
+
+    SaveGeneralSettings(GetGeneralSettingsPath().c_str(), generalSettings_);
+    if (settingsController_)
+        (void)settingsController_->SynchronizeGeneral(generalSettings_);
+    // 指示器跨屏移动，旧位置的残影也要一并重绘。
+    InvalidateRect(hwnd_, nullptr, TRUE);
 }
 
 /**

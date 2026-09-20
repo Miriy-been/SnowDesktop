@@ -279,13 +279,6 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
 
     bool desktopToDesktopMove = internalMove && sourceList.hasDesktopIcons &&
         !containers_.empty() && sourceList.origin == containers_.front().get();
-    {
-        wchar_t planLog[160]{};
-        swprintf_s(planLog, L"LAND-plan entries=%zu internal=%d d2d=%d hasWidgets=%d",
-            sourceList.entries.size(), internalMove ? 1 : 0,
-            desktopToDesktopMove ? 1 : 0, sourceList.hasWidgets ? 1 : 0);
-        AppendDragOrderDebugLog(planLog);
-    }
     if (desktopToDesktopMove)
     {
         if (sourceList.entries.size() == 1)
@@ -302,10 +295,7 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
                 if (moves.empty())
                     moves = BuildFallbackPerItemMove(sourceList, targetCell);
                 if (moves.empty())
-                {
-                    AppendDragOrderDebugLog(L"LAND single empty");
                     return landings;
-                }
             }
 
             for (const auto& entry : sourceList.entries)
@@ -319,15 +309,6 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
                 landing.cell = it->cell;
                 landing.span = entry.originalSpan;
                 landings.push_back(landing);
-                {
-                    wchar_t landLog[320]{};
-                    swprintf_s(landLog, L"LAND single %s -> %s",
-                        entry.desktopIndex < items_.size()
-                            ? items_[entry.desktopIndex].name.c_str()
-                            : L"?",
-                        DragDebugCell(landing.cell).c_str());
-                    AppendDragOrderDebugLog(landLog);
-                }
             }
             return landings;
         }
@@ -335,10 +316,7 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
         // 多选拖拽：保持官方行为——整组就近搜索空闲铺开，不与占用格重叠。
         std::vector<PendingGridMove> moves = BuildSelectedMove(targetCell);
         if (moves.empty())
-        {
-            AppendDragOrderDebugLog(L"LAND multi empty (drop will fail)");
             return landings;
-        }
         for (const auto& entry : sourceList.entries)
         {
             auto it = std::find_if(moves.begin(), moves.end(),
@@ -350,15 +328,6 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
             landing.cell = it->cell;
             landing.span = entry.originalSpan;
             landings.push_back(landing);
-            {
-                wchar_t landLog[320]{};
-                swprintf_s(landLog, L"LAND multi %s -> %s",
-                    entry.desktopIndex < items_.size()
-                        ? items_[entry.desktopIndex].name.c_str()
-                        : L"?",
-                    DragDebugCell(landing.cell).c_str());
-                AppendDragOrderDebugLog(landLog);
-            }
         }
         return landings;
     }
@@ -559,15 +528,6 @@ std::vector<DropLanding> DesktopApp::BuildDesktopLandings(
         landing.cell = cell;
         landing.span = span;
         landings.push_back(landing);
-        {
-            wchar_t landLog[320]{};
-            swprintf_s(landLog, L"LAND seq %s -> %s",
-                entry.desktopIndex < items_.size()
-                    ? items_[entry.desktopIndex].name.c_str()
-                    : L"?",
-                DragDebugCell(cell).c_str());
-            AppendDragOrderDebugLog(landLog);
-        }
 
         MarkGridArea(usedSlots, cell, span);
         cursor = advanceCell(cell, span);

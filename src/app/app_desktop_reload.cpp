@@ -1118,7 +1118,18 @@ void DesktopApp::OnIconLoaded(WPARAM /*wParam*/, LPARAM lParam)
                 {
                     item.iconState = IconState::FullQuality;
                 }
-                InvalidateRect(hwnd_, nullptr, FALSE);
+                // 按项矩形失效：启动/刷新时 N 个图标 = N 次重绘，全窗口
+                // 失效会把重绘放大 N 倍。bounds 尚未布局时回退整窗。
+                RECT itemDirty = item.bounds;
+                if (IsRectEmptyRect(itemDirty))
+                {
+                    InvalidateRect(hwnd_, nullptr, FALSE);
+                }
+                else
+                {
+                    InflateRect(&itemDirty, 4, 4);
+                    InvalidateRect(hwnd_, &itemDirty, FALSE);
+                }
                 if (quickNavigationOpen_)
                     InvalidateQuickNavigationWindow();
                 break;
@@ -1172,7 +1183,17 @@ void DesktopApp::OnIconLoaded(WPARAM /*wParam*/, LPARAM lParam)
                     {
                         entry.iconState = IconState::FullQuality;
                     }
-                    InvalidateRect(hwnd_, nullptr, FALSE);
+                    // 按组件框失效（条目像素都在组件框内），替代整窗失效。
+                    RECT widgetDirty = widget.bounds;
+                    if (IsRectEmptyRect(widgetDirty))
+                    {
+                        InvalidateRect(hwnd_, nullptr, FALSE);
+                    }
+                    else
+                    {
+                        InflateRect(&widgetDirty, 4, 4);
+                        InvalidateRect(hwnd_, &widgetDirty, FALSE);
+                    }
                     if (quickNavigationOpen_)
                         InvalidateQuickNavigationWindow();
                     if (dockFolderPopup)

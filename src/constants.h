@@ -210,6 +210,13 @@ constexpr UINT kContextGridRecommended1610Last = 41423;
 constexpr UINT kContextDisplayAppearanceMore = 41424;
 constexpr UINT kContextCollectFirst = 41560;
 constexpr UINT kContextCollectLast  = 41590;
+// 分页圆点指示器右键菜单（收集区段与 Lua 组件菜单区段之间的空档）
+constexpr UINT kContextDotsVerticalBottom = 41591;
+constexpr UINT kContextDotsVerticalTop = 41592;
+constexpr UINT kContextDotsHorizontalCenter = 41593;
+constexpr UINT kContextDotsHorizontalLeft = 41594;
+constexpr UINT kContextDotsHorizontalRight = 41595;
+constexpr UINT kContextDotsDetailedSettings = 41596;
 constexpr UINT kContextDockPositionBottom = 41800;
 constexpr UINT kContextDockPositionTop = 41801;
 constexpr UINT kContextDockPositionLeft = 41802;

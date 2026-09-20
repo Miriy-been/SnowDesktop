@@ -914,6 +914,8 @@ private:
     PageDotsLayoutInfo ComputePageDotsLayout() const;
     /** @brief 命中测试常驻圆点分页指示器。 @param clientPt client 坐标 @return 命中页索引（0-based），未命中返回 -1 */
     int HitTestPageDotsIndicator(POINT clientPt) const;
+    /** @brief 命中测试圆点指示器胶囊整体（含边距容差），供右键菜单分发。 */
+    bool IsPointOverPageDotsIndicator(POINT pt) const;
     /** @brief 绘制常驻圆点分页指示器（移动端风格，支持自定义外观与位置）。 @param ctx D2D 设备上下文 */
     void DrawPageDotsIndicator(ID2D1DeviceContext* ctx);
     /** @brief 仅重绘圆点指示器区域（含悬停页面名气泡），避免整屏刷新。 */
@@ -1889,6 +1891,8 @@ private:
     // ── Context menus ───────────────────────────────────────
     /** @brief 显示桌面背景上下文菜单。 @param screenPoint 屏幕坐标 */
     void ShowBackgroundContextMenu(POINT screenPoint);
+    /** @brief 分页圆点指示器右键菜单：垂直/水平位置 + 打开设置。 */
+    void ShowPageDotsContextMenu(POINT screenPoint);
     /** @brief 显示精简的“添加组件”菜单。 @param screenPoint 菜单锚点 */
     void ShowAddWidgetMenu(POINT screenPoint);
     snowdesktop::component_preview::Model BuildAddWidgetMenuPreview(
@@ -2336,9 +2340,6 @@ private:
      * @return 调整后的目标点
      */
     POINT GetDragTargetPoint(POINT current) const;
-    // ── 拖拽顺序诊断（临时）：定位多选跨页乱序用，问题解决后移除 ──
-    static void AppendDragOrderDebugLog(const std::wstring& line);
-    static std::wstring DragDebugCell(const GridCell& cell);
     /** @brief 按来源锚定语义解析桌面请求格。 */
     GridCell ResolveDesktopRequestCell(
         const DragSourceList& sourceList, POINT current) const;

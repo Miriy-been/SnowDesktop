@@ -159,13 +159,6 @@ bool DesktopApp::ExecuteInternalDropPlan(const DragSourceList& sourceList,
             if (it == sourceList.entries.end() || it->desktopIndex >= items_.size()) continue;
             items_[it->desktopIndex].gridCell = landing.cell;
             items_[it->desktopIndex].slot = SlotFromCell(gridPages_, landing.cell);
-            {
-                wchar_t commitLog[320]{};
-                swprintf_s(commitLog, L"COMMIT %s -> %s",
-                    items_[it->desktopIndex].name.c_str(),
-                    DragDebugCell(landing.cell).c_str());
-                AppendDragOrderDebugLog(commitLog);
-            }
             changed = true;
         }
         // 桌面插入：被拖图标可能精确落在被占格上，顺延被挤到的未选中图标。

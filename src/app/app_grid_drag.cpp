@@ -544,18 +544,9 @@ void DesktopApp::ResolveDesktopInsertionCollisions(
             if (TryFindFreeCell(span, usedSlots, freeCell,
                     item.gridCell.pageId, item.slot))
             {
-                const GridCell collideFrom = item.gridCell;
                 item.gridCell = freeCell;
                 item.slot = SlotFromCell(gridPages_, freeCell);
                 MarkGridArea(usedSlots, freeCell, span);
-                {
-                    wchar_t collideLog[320]{};
-                    swprintf_s(collideLog, L"COLLIDE %s %s -> %s",
-                        item.name.c_str(),
-                        DragDebugCell(collideFrom).c_str(),
-                        DragDebugCell(freeCell).c_str());
-                    AppendDragOrderDebugLog(collideLog);
-                }
             }
             else
             {
@@ -803,15 +794,9 @@ void DesktopApp::MigrateSelectedItemsToLastMonitorPage()
     // entire group's source cells/spans until its accepted drop commits them;
     // this also makes cancellation leave the original layout intact.
     if (std::any_of(items_.begin(), items_.end(), [](const auto& item) { return item.selected && item.largeIcon; }))
-    {
-        AppendDragOrderDebugLog(L"MIGRATE skip largeIcon-preview");
         return;
-    }
     if (gridPages_.empty() || lastMonitorPageId_.empty())
-    {
-        AppendDragOrderDebugLog(L"MIGRATE skip no-target-page");
         return;
-    }
     const GridPage* targetPage = FindGridPage(gridPages_, lastMonitorPageId_);
     if (!targetPage) return;
 
@@ -838,21 +823,13 @@ void DesktopApp::MigrateSelectedItemsToLastMonitorPage()
     if (moves.empty())
     {
         // 目标页整组放不下：保留原位（与落位失败行为一致）。
-        AppendDragOrderDebugLog(L"MIGRATE group no-fit, keep source cells");
         return;
     }
 
     for (const auto& move : moves)
     {
         auto& item = items_[move.index];
-        const GridCell migrateFrom = item.gridCell;
         item.gridCell = move.cell;
-        wchar_t migrateLog[320]{};
-        swprintf_s(migrateLog, L"MIGRATE %s %s -> %s",
-            item.name.c_str(),
-            DragDebugCell(migrateFrom).c_str(),
-            DragDebugCell(move.cell).c_str());
-        AppendDragOrderDebugLog(migrateLog);
     }
 }
 

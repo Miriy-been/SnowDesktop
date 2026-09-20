@@ -757,10 +757,17 @@ void DesktopApp::OnMouseMoveAt(
                 gridPages_, widgetPreviewCell_, widgetPreviewSpan_);
         }
         // 缩放跟随：表面按新 bounds 重建（尺寸变化需要重绘内容）。
+        const RECT previousResizeBounds = dragged.bounds;
         dragged.bounds = previewBounds;
         // 加入合成重建队列，让组件表面按新尺寸重建（实时缩放）。
         pendingDesktopWidgetCompositions_.insert(dragged.id);
-        InvalidateRect(hwnd_, nullptr, FALSE);
+        // 组件像素在独立 DComp 表面（根场景不画组件本体），且桌面目标
+        // 没有落点占位框；按新旧 bounds 并集做脏区即可，避免每个采样点
+        // 整窗重绘拖累流畅度。
+        RECT resizeDirty = previousResizeBounds;
+        UnionRect(&resizeDirty, &resizeDirty, &previewBounds);
+        InflateRect(&resizeDirty, 8, 8);
+        InvalidateRect(hwnd_, &resizeDirty, FALSE);
         ShowDragHintWindow(current, _LW("core.drag.resize_widget"));
         return;
     }

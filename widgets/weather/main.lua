@@ -5,10 +5,6 @@ local descriptor
 local json = module.require("modules/json.lua")
 local codes = module.require("modules/codes.lua")
 
-local ARROW_UP = utf8.char(0x2191)
-local ARROW_DOWN = utf8.char(0x2193)
-local CIRCLE_K = 0.5523
-
 local fluent = {
     refresh = utf8.char(0xF13D),
 }
@@ -117,6 +113,8 @@ local function isoClock(value)
 end
 
 local function currentNight(model)
+    -- Preview-only knob (--storage previewNight=1) to render night glyphs.
+    if model.forceNight then return true end
     local parts = time.parts(time.now())
     local today = string.format("%04d-%02d-%02d",
         parts.year, parts.month, parts.day)
@@ -144,53 +142,17 @@ end
 -- Vector weather glyphs
 ---------------------------------------------------------------------
 
-local function circleSubpath(cx, cy, r)
-    local k = r * CIRCLE_K
-    return {
-        { op = "move", x = cx + r, y = cy },
-        { op = "cubic", x1 = cx + r, y1 = cy + k, x2 = cx + k, y2 = cy + r,
-            x = cx, y = cy + r },
-        { op = "cubic", x1 = cx - k, y1 = cy + r, x2 = cx - r, y2 = cy + k,
-            x = cx - r, y = cy },
-        { op = "cubic", x1 = cx - r, y1 = cy - k, x2 = cx - k, y2 = cy - r,
-            x = cx, y = cy - r },
-        { op = "cubic", x1 = cx + k, y1 = cy - r, x2 = cx + r, y2 = cy - k,
-            x = cx + r, y = cy },
-    }
-end
-
-local function cloudPath(cx, cy, s)
-    local commands = {}
-    local function append(subpath)
-        for index = 1, #subpath do
-            commands[#commands + 1] = subpath[index]
-        end
-    end
-    append(circleSubpath(cx - 0.26 * s, cy + 0.06 * s, 0.185 * s))
-    append(circleSubpath(cx + 0.02 * s, cy - 0.06 * s, 0.27 * s))
-    append(circleSubpath(cx + 0.30 * s, cy + 0.05 * s, 0.20 * s))
-    append(circleSubpath(cx - 0.06 * s, cy + 0.13 * s, 0.14 * s))
-    local l, t = cx - 0.42 * s, cy + 0.06 * s
-    local w, h, r = 0.92 * s, 0.22 * s, 0.11 * s
-    commands[#commands + 1] = { op = "move", x = l + r, y = t }
-    commands[#commands + 1] = { op = "line", x = l + w - r, y = t }
-    commands[#commands + 1] = { op = "quadratic", x1 = l + w, y1 = t,
-        x = l + w, y = t + r }
-    commands[#commands + 1] = { op = "line", x = l + w, y = t + h - r }
-    commands[#commands + 1] = { op = "quadratic", x1 = l + w, y1 = t + h,
-        x = l + w - r, y = t + h }
-    commands[#commands + 1] = { op = "line", x = l + r, y = t + h }
-    commands[#commands + 1] = { op = "quadratic", x1 = l, y1 = t + h,
-        x = l, y = t + h - r }
-    commands[#commands + 1] = { op = "line", x = l, y = t + r }
-    commands[#commands + 1] = { op = "quadratic", x1 = l, y1 = t,
-        x = l + r, y = t }
-    return commands
-end
-
+--- Cloud silhouette from primitives: three overlapping circles plus a
+-- rounded base bar (same opaque color, seams invisible). Primitive calls
+-- are quota-safe; a 30-command path per cloud exceeded the render quota
+-- when drawing 15+ glyphs per frame.
 local function drawCloud(cx, cy, s, color, alpha)
-    draw.path(cloudPath(cx, cy, s), {
-        fillColor = color, alpha = alpha or 1, fillRule = "winding" })
+    local a = alpha or 1
+    draw.circle(cx - 0.26 * s, cy + 0.06 * s, 0.185 * s, color, a)
+    draw.circle(cx + 0.02 * s, cy - 0.06 * s, 0.27 * s, color, a)
+    draw.circle(cx + 0.30 * s, cy + 0.05 * s, 0.20 * s, color, a)
+    draw.rect(cx - 0.42 * s, cy + 0.06 * s, 0.92 * s, 0.22 * s, color,
+        0.11 * s, a)
 end
 
 local function drawSun(cx, cy, s, color, alpha)
@@ -206,31 +168,87 @@ local function drawSun(cx, cy, s, color, alpha)
     end
 end
 
+--- Crescent geometry, precomputed once at load in unit space (unit r,
+-- rotated -30°, recentered in the glyph box). drawMoon then only scales
+-- and translates with plain arithmetic — no per-frame closures, keeping
+-- the render quota for frames with 15+ glyphs.
+local MOON_COMMANDS = (function()
+    local unit = {
+        { "move", 0.438, -0.899 },
+        { "cubic", 0.017, -1.104, -0.488, -0.990, -0.781, -0.625 },
+        { "cubic", -1.074, -0.259, -1.074, 0.259, -0.781, 0.625 },
+        { "cubic", -0.488, 0.990, 0.017, 1.104, 0.438, 0.899 },
+        { "cubic", -0.059, 0.899, -0.461, 0.497, -0.461, 0 },
+        { "cubic", -0.461, -0.497, -0.059, -0.899, 0.438, -0.899 },
+    }
+    local cosT, sinT = 0.866, -0.5
+    local out = {}
+    for index = 1, #unit do
+        local src = unit[index]
+        local dst = { src[1] }
+        for field = 2, #src, 2 do
+            dst[#dst + 1] = src[field] * cosT - src[field + 1] * sinT + 0.42
+            dst[#dst + 1] = src[field] * sinT + src[field + 1] * cosT + 0.18
+        end
+        out[index] = dst
+    end
+    return out
+end)()
+
 local function drawMoon(cx, cy, s, color, alpha)
-    local topY = cy - 0.40 * s
-    local bottomY = cy + 0.40 * s
-    local edgeX = cx - 0.10 * s
+    local r = 0.40 * s
+    local path = {}
+    for index = 1, #MOON_COMMANDS do
+        local src = MOON_COMMANDS[index]
+        if src[1] == "move" then
+            path[index] = { op = "move", x = cx + src[2] * r,
+                y = cy + src[3] * r }
+        else
+            path[index] = { op = "cubic", x1 = cx + src[2] * r,
+                y1 = cy + src[3] * r, x2 = cx + src[4] * r,
+                y2 = cy + src[5] * r, x = cx + src[6] * r,
+                y = cy + src[7] * r }
+        end
+    end
+    draw.path(path, { fillColor = color, alpha = alpha or 1 })
+end
+
+--- Four-point sparkle star centered at (cx, cy) with arm length s.
+local function drawSparkle(cx, cy, s, color, alpha)
     draw.path({
-        { op = "move", x = edgeX, y = topY },
-        { op = "cubic", x1 = cx - 0.56 * s, y1 = cy - 0.22 * s,
-            x2 = cx - 0.56 * s, y2 = cy + 0.22 * s, x = edgeX, y = bottomY },
-        { op = "cubic", x1 = cx - 0.20 * s, y1 = cy + 0.24 * s,
-            x2 = cx - 0.20 * s, y2 = cy - 0.24 * s, x = edgeX, y = topY },
+        { op = "move", x = cx, y = cy - s },
+        { op = "quadratic", x1 = cx + 0.12 * s, y1 = cy - 0.12 * s,
+            x = cx + s, y = cy },
+        { op = "quadratic", x1 = cx + 0.12 * s, y1 = cy + 0.12 * s,
+            x = cx, y = cy + s },
+        { op = "quadratic", x1 = cx - 0.12 * s, y1 = cy + 0.12 * s,
+            x = cx - s, y = cy },
+        { op = "quadratic", x1 = cx - 0.12 * s, y1 = cy - 0.12 * s,
+            x = cx, y = cy - s },
     }, { fillColor = color, alpha = alpha or 1 })
-    draw.circle(cx + 0.26 * s, cy - 0.12 * s, 0.035 * s, color, alpha or 1)
-    draw.circle(cx + 0.16 * s, cy + 0.14 * s, 0.025 * s, color, alpha or 1)
+end
+
+local function drawNightSky(cx, cy, s, colors, alpha)
+    drawMoon(cx, cy, s, colors.primary, alpha)
+    -- Sparkle pair in the crescent's opening, like the reference icon.
+    drawSparkle(cx + 0.30 * s, cy - 0.28 * s, 0.08 * s, colors.primary,
+        (alpha or 1) * 0.95)
+    drawSparkle(cx + 0.34 * s, cy + 0.02 * s, 0.05 * s, colors.primary,
+        (alpha or 1) * 0.7)
 end
 
 local function drawWeatherGlyph(kind, cx, cy, s, colors)
     if kind == "sun" then
         drawSun(cx, cy, s, colors.warm)
     elseif kind == "moon" then
-        drawMoon(cx, cy, s, colors.primary)
+        drawNightSky(cx, cy, s, colors, 1)
     elseif kind == "cloudSun" then
         drawSun(cx + 0.24 * s, cy - 0.26 * s, 0.60 * s, colors.warm)
         drawCloud(cx - 0.02 * s, cy + 0.10 * s, 0.9 * s, colors.primary)
     elseif kind == "cloudMoon" then
-        drawMoon(cx + 0.22 * s, cy - 0.26 * s, 0.62 * s, colors.secondary)
+        -- Classic "moon beside cloud": whole crescent visible in the sky,
+        -- bottom tip just meeting the cloud shoulder.
+        drawMoon(cx + 0.32 * s, cy - 0.32 * s, 0.48 * s, colors.primary)
         drawCloud(cx - 0.02 * s, cy + 0.10 * s, 0.9 * s, colors.primary)
     elseif kind == "rain" or kind == "rainHeavy" then
         drawCloud(cx - 0.02 * s, cy - 0.16 * s, 0.9 * s, colors.primary)
@@ -465,6 +483,7 @@ local function applySnapshot(model, snapshot)
 end
 
 local function loadPreview(model)
+    model.forceNight = storage.get("previewNight") == "1"
     model.city = tr("lua_widget.weather.preview_city")
     model.now = {
         temp = 28, feelsLike = 30, humidity = 62, wmo = 2,
@@ -497,7 +516,8 @@ local function loadPreview(model)
             fxDate = date,
             tempMax = maxTemps[index], tempMin = minTemps[index],
             wmo = dayWmos[index],
-            sunrise = date .. "T06:00", sunset = date .. "T18:00",
+            -- Clock-only times, same shape as isoClock() in applyForecast.
+            sunrise = "06:00", sunset = "18:00",
         }
     end
 end
@@ -558,18 +578,15 @@ local function fitDetails(parts, font, maxWidth)
     return parts[1] or ""
 end
 
-local function hiLoLine(model)
-    local first = model.daily and model.daily[1]
-    if not first or first.tempMax == nil then return "" end
-    return ARROW_UP .. formatTemp(first.tempMax) .. " " ..
-        ARROW_DOWN .. formatTemp(first.tempMin)
-end
-
 local function drawHero(x, y, w, h, model, colors, m, mode)
     local now = model.now
     if not now then return end
     local kind = codes.wmoKind(now.wmo, currentNight(model))
+    -- Weather condition and city share one line: "晴 · 杭州".
     local condition = tr(codes.wmoTextKey(now.wmo))
+    if model.city ~= "" then
+        condition = condition .. " · " .. model.city
+    end
     if mode == "stacked" then
         local details = fitDetails(detailParts(model), m.caption,
             math.max(20, w - m.sm))
@@ -667,8 +684,12 @@ local function drawHourlyStrip(x, y, w, h, model, colors, m, night)
 end
 
 local function drawDaily(x, y, w, h, model, colors, m, night, withBar)
-    local rowCount = math.min(#model.daily, 7)
-    if rowCount <= 0 or h < m.row * 0.8 then return end
+    -- Minimum readable row height; never overlap rows when the surface is
+    -- short — drop the trailing days instead.
+    local minRowH = math.max(m.row * 0.82, 16 * m.scale)
+    local maxRows = math.max(1, math.floor(h / minRowH))
+    local rowCount = math.min(#model.daily, 7, maxRows)
+    if rowCount <= 0 or h < minRowH * 0.6 then return end
     local rowH = math.min(m.row * 1.14, h / rowCount)
     local today = isoToday()
     local tomorrowEpoch = time.now() + 86400000
@@ -712,28 +733,34 @@ local function drawDaily(x, y, w, h, model, colors, m, night, withBar)
         local textCenterY = rowY + (rowH - draw.measureText("00°", tempFont,
             0, false).height) / 2
         if withBar and weekMax > weekMin then
-            local minRight = x + w - barW - m.lg
-            local minText = formatTemp(day.tempMin)
-            local minM = draw.measureText(minText, tempFont, 0, false)
-            draw.text(minRight - minM.width, textCenterY, minText, tempFont,
-                colors.tertiary, minM.width + 2, false, true)
             local maxText = formatTemp(day.tempMax)
             local maxM = draw.measureText(maxText, tempFont, 0, false)
             draw.text(x + w - maxM.width, textCenterY, maxText, tempFont,
                 colors.primary, maxM.width + 2, false, true)
+            local minText = formatTemp(day.tempMin)
+            local minM = draw.measureText(minText, tempFont, 0, false)
+            -- Range bar sits between the two temperatures, never under
+            -- either text.
+            local trackStart = x + w - maxM.width - m.sm - barW
+            local minRight = trackStart - m.sm
+            draw.text(minRight - minM.width, textCenterY, minText, tempFont,
+                colors.tertiary, minM.width + 2, false, true)
             local low = tonumber(day.tempMin) or weekMin
             local high = tonumber(day.tempMax) or weekMax
-            local trackX = minRight + m.sm
-            local barStart = trackX + barW *
-                math.max(0, math.min(1, (low - weekMin) / (weekMax - weekMin)))
-            local barEnd = trackX + barW *
-                math.max(0, math.min(1, (high - weekMin) / (weekMax - weekMin)))
-            draw.line(trackX, rowY + rowH / 2, trackX + barW,
-                rowY + rowH / 2, math.max(1, 3 * m.scale), colors.track, 0.14)
-            if barEnd > barStart then
-                draw.gradientRect(barStart, rowY + rowH / 2 - 1.5 * m.scale,
-                    barEnd - barStart, 3 * m.scale, colors.cool, colors.warm,
-                    "horizontal", 1.5 * m.scale, 0.85)
+            if trackStart > minRight + math.max(1, m.scale) then
+                local midY = rowY + rowH / 2
+                draw.line(trackStart, midY, trackStart + barW, midY,
+                    math.max(1, 3 * m.scale), colors.track, 0.14)
+                local barStart = trackStart + barW * math.max(0,
+                    math.min(1, (low - weekMin) / (weekMax - weekMin)))
+                local barEnd = trackStart + barW * math.max(0,
+                    math.min(1, (high - weekMin) / (weekMax - weekMin)))
+                if barEnd > barStart then
+                    draw.gradientRect(barStart,
+                        midY - 1.5 * m.scale, barEnd - barStart,
+                        3 * m.scale, colors.cool, colors.warm,
+                        "horizontal", 1.5 * m.scale, 0.85)
+                end
             end
         else
             local rangeText = formatTemp(day.tempMin) .. " / " ..
@@ -835,37 +862,14 @@ local function render(context, model)
     local cursorY = pad + heroH
     local availH = height - cursorY - pad
 
-    -- City + hi/lo caption once the hero leaves enough room below.
-    if availH >= m.row * 0.9 and not isTall then
-        local city = model.city ~= "" and model.city or ""
-        local hiLo = hiLoLine(model)
-        local hiLoM = hiLo ~= ""
-            and draw.measureText(hiLo, m.caption, 0, false) or nil
-        draw.text(pad, cursorY + m.xs, city, m.caption, colors.faint,
-            math.max(unit, width - pad * 2 - (hiLoM and hiLoM.width or 0) -
-                m.sm), false, true)
-        if hiLoM then
-            drawRightText(width - pad, cursorY + m.xs, hiLo, m.caption,
-                colors.faint, false)
-        end
-        cursorY = cursorY + m.caption + m.sm
-        availH = height - cursorY - pad
-    elseif isTall and availH >= m.row * 0.9 then
-        local hiLo = hiLoLine(model)
-        if hiLo ~= "" then
-            drawCenteredText(width / 2, cursorY + m.xs, hiLo, m.caption,
-                colors.faint, width - pad * 2)
-            cursorY = cursorY + m.caption + m.sm
-            availH = height - cursorY - pad
-        end
-    end
-
     if availH < m.row * 1.2 then return end
+    -- Breathing gap between the hero text block and the hourly strip.
+    local stripY = cursorY + m.sm
     local stripH = m.row * 2.3
-    if #model.hourly > 0 and availH >= stripH then
-        drawHourlyStrip(pad, cursorY, width - pad * 2, stripH, model, colors,
+    if #model.hourly > 0 and availH >= stripH + m.sm then
+        drawHourlyStrip(pad, stripY, width - pad * 2, stripH, model, colors,
             m, night)
-        cursorY = cursorY + stripH
+        cursorY = stripY + stripH
         availH = height - cursorY - pad
     end
     if #model.daily > 0 and availH >= m.row * 1.1 then
