@@ -760,7 +760,8 @@ public:
             app_.generalSettings_.pageDotsVertical = general.pageDotsVertical;
             app_.generalSettings_.pageDotsHorizontal = general.pageDotsHorizontal;
             app_.generalSettings_.pageDotsMargin = general.pageDotsMargin;
-            app_.generalSettings_.altWheelTurnPage = general.altWheelTurnPage;
+            app_.generalSettings_.wheelTurnPageMode =
+                std::clamp(general.wheelTurnPageMode, 0, 2);
             app_.ApplyQuickNavigationAppearance();
             app_.ApplyCollectionPopupAppearance();
             app_.ApplyAnimationPreferences();

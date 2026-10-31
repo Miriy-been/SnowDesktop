@@ -856,6 +856,29 @@ bool DesktopApp::SaveLayoutSlots()
         savedPageRows_[page.id] = page.rows;
     }
 
+    // 防御：items 记录引用的页面可能已无尺寸记录（例如历史损坏数据里被
+    // RememberSavedPageId 重新加回的页）。缺失尺寸的页面回退到末屏显示器
+    // 网格，绝不把 max(1,0)=1 的占位尺寸写盘——1x1 页会把页上文件全部挤走，
+    // 只留一个占满整页的图标。
+    {
+        const std::vector<size_t> monitorOrder = BuildMonitorRenderOrder();
+        const GridPage* refPage =
+            (!monitorOrder.empty() && monitorOrder.back() < gridPages_.size())
+                ? &gridPages_[monitorOrder.back()]
+                : GetFirstPageGridPage();
+        for (const auto& pageId : savedPageIds_)
+        {
+            if (pageId.empty() || pageId == kDockPageId) continue;
+            if (savedPageColumns_.contains(pageId) &&
+                savedPageRows_.contains(pageId))
+                continue;
+            if (FindGridPage(gridPages_, pageId)) continue;
+            if (!refPage) break;
+            savedPageColumns_[pageId] = std::max(1, refPage->columns);
+            savedPageRows_[pageId] = std::max(1, refPage->rows);
+        }
+    }
+
     std::vector<std::wstring> pagesToWrite;
     pagesToWrite.reserve(savedPageIds_.size());
     for (const auto& pageId : savedPageIds_)

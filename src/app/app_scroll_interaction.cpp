@@ -14,18 +14,26 @@ void DesktopApp::OnMouseWheel(WPARAM wp, LPARAM lp)
     if (GetAsyncKeyState(VK_MENU) & 0x8000)    currentMods |= MK_ALT;
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)   currentMods |= MK_SHIFT;
 
-    // Alt + 鼠标滚轮翻页（上滚=上一页，下滚=下一页）。拖拽会话中不接管滚轮。
-    if (generalSettings_.altWheelTurnPage &&
-        (currentMods & MK_ALT) &&
-        !dragSession_.IsActive())
+    // 滚轮翻页模式：1=Alt+滚轮（按住 Alt 已明确表达翻页意图，不做空白桌面
+    // 限制）；2=纯滚轮（仅空白桌面翻页，悬停在组件/弹窗/Dock 等可滚动内容上
+    // 时滚轮仍交给对应表面）。两种模式由设置互斥选择，拖拽会话中不接管滚轮。
+    if (!dragSession_.IsActive() &&
+        generalSettings_.wheelTurnPageMode > 0)
     {
-        const int delta = GET_WHEEL_DELTA_WPARAM(wp);
-        if (delta != 0)
+        const bool pageTurnRequested =
+            generalSettings_.wheelTurnPageMode == 1
+                ? (currentMods & MK_ALT) != 0
+                : !WheelRoutesToScrollableSurface(pt);
+        if (pageTurnRequested)
         {
-            NavigatePageOffset(delta > 0 ? -1 : 1);
-            InvalidateRect(hwnd_, nullptr, FALSE);
-            PresentDesktopPointerUpdate();
-            return;
+            const int delta = GET_WHEEL_DELTA_WPARAM(wp);
+            if (delta != 0)
+            {
+                NavigatePageOffset(delta > 0 ? -1 : 1);
+                InvalidateRect(hwnd_, nullptr, FALSE);
+                PresentDesktopPointerUpdate();
+                return;
+            }
         }
     }
 
@@ -248,6 +256,49 @@ void DesktopApp::OnMouseWheel(WPARAM wp, LPARAM lp)
         }
         return;
     }
+}
+
+bool DesktopApp::WheelRoutesToScrollableSurface(POINT pt) const
+{
+    // 与 OnMouseWheel 的各滚动分支一一对应：只要指针位于会把滚轮
+    // 消耗掉的内容表面上，空白桌面翻页分支就不接管。
+    // Lua 组件面板打开时吞掉全部滚轮（面板分支无视指针位置直接返回）。
+    if (!luaWidgetPanelRequest_.widgetId.empty() &&
+        luaWidgetPanelAnimation_.IsInteractive())
+        return true;
+
+    if (quickNavigationOpen_ && PtInRect(&quickNavigationRect_, pt))
+        return true;
+
+    const size_t luaWidget = HitTestStandaloneWidgetIndex(pt);
+    if (luaWidget != static_cast<size_t>(-1) &&
+        widgets_[luaWidget].type == DesktopWidgetType::LuaScript &&
+        HitTestStandaloneWidget(luaWidget, pt) == WidgetHit::Content)
+        return true;
+
+    if (GetDockContainerAtPoint(pt))
+        return true;
+
+    if (const DesktopWidget* popupWidget = GetOpenPopupWidget();
+        IsCollectionPopupInteractive() &&
+        popupWidget)
+    {
+        const RECT popup = GetCollectionPopupRect(*popupWidget);
+        if (PtInRect(&popup, pt))
+            return true;
+    }
+
+    for (const auto& c : containers_)
+    {
+        if (desktopIconsHidden_ && !IsRetainedContainer(c.get()))
+            continue;
+        const auto* wc = dynamic_cast<const WidgetContainer*>(c.get());
+        if (!wc || !wc->GetWidgetData()) continue;
+        const RECT frame = wc->GetFrameRect();
+        if (PtInRect(&frame, pt))
+            return true;
+    }
+    return false;
 }
 
 // ── Lua inline editing ──────────────────────────────────────

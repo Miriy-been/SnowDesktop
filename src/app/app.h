@@ -3100,6 +3100,8 @@ private:
     RECT GetCollectionPopupItemTextRect(const RECT& itemRect) const;
     /** @brief 处理鼠标滚轮消息。 @param wp WPARAM @param lp LPARAM */
     void OnMouseWheel(WPARAM wp, LPARAM lp);
+    /** @brief 滚轮事件是否应交给可滚动表面（组件内容、弹窗、Dock 等）而非空白桌面翻页。 */
+    bool WheelRoutesToScrollableSurface(POINT pt) const;
     /**
      * @brief 在鼠标坐标处刷新拖拽目标状态。
      * @param clientPoint 客户端坐标

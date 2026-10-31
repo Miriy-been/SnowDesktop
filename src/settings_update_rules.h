@@ -116,7 +116,7 @@ inline bool IsRenderOnlyGeneralCommit(
         before.pageDotsVertical == after.pageDotsVertical &&
         before.pageDotsHorizontal == after.pageDotsHorizontal &&
         before.pageDotsMargin == after.pageDotsMargin &&
-        before.altWheelTurnPage == after.altWheelTurnPage;
+        before.wheelTurnPageMode == after.wheelTurnPageMode;
     // Only treat as a render-only commit when something actually changed;
     // fully-equal snapshots fall through to the regular rules.
     return !renderFieldsEqual;

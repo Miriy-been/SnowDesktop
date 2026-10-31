@@ -1130,6 +1130,22 @@ bool DesktopApp::PageHasContent(const std::wstring& pageId) const
     for (const auto& w : widgets_)
         if (w.gridCell.pageId == pageId &&
             !IsGroupedWidget(w)) return true;
+    // 启动阶段 shell 枚举尚未恢复 items_，运行时视图为空会把“只含文件、
+    // 没有组件”的溢出页误判为空页：PruneEmptyOverflowPages 清理该页并擦除
+    // 尺寸记录后，下次保存会把页面持久化成 1x1 占位网格，随后刷新把页上
+    // 文件全部挤回第一页。布局记录是最后一次保存的持久视图，只要有未被
+    // 组件收录的文件仍指向该页，就视为非空。
+    std::unordered_set<std::wstring> widgetOwnedKeys;
+    for (const auto& w : widgets_)
+        for (const auto& key : w.itemKeys)
+            if (!key.empty())
+                widgetOwnedKeys.insert(ToUpperInvariant(key));
+    for (const auto& [key, record] : layoutRecords_)
+    {
+        if (!record.hasGrid || record.cell.pageId != pageId) continue;
+        if (widgetOwnedKeys.contains(key)) continue;
+        return true;
+    }
     return false;
 }
 

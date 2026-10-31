@@ -126,7 +126,8 @@ struct GeneralPagePresenter::Impl
     HotkeyRecorder previousPageHotkey;
     muxc::TextBlock nextPageHotkeyLabel{nullptr};
     HotkeyRecorder nextPageHotkey;
-    muxc::ToggleSwitch altWheelTurnPageToggle{nullptr};
+    muxc::ComboBox wheelTurnPageCombo{nullptr};
+    int wheelTurnPageMode = 1;
     muxc::ToggleSwitch desktopPassthroughToggle{nullptr};
     muxc::TextBlock desktopPassthroughHint{nullptr};
     muxc::TextBlock desktopPassthroughHotkeyLabel{nullptr};
@@ -146,7 +147,7 @@ struct GeneralPagePresenter::Impl
     SettingRow pageNavigationToggleRow;
     HotkeySettingRow previousPageHotkeyRow;
     HotkeySettingRow nextPageHotkeyRow;
-    SettingRow altWheelTurnPageToggleRow;
+    SettingRow wheelTurnPageRow;
     SettingRow desktopPassthroughToggleRow;
     HotkeySettingRow desktopPassthroughHotkeyRow;
     SettingRow floatingDockToggleRow;
@@ -174,7 +175,7 @@ struct GeneralPagePresenter::Impl
     winrt::event_token languageSelectionToken{};
     winrt::event_token quickNavigationToken{};
     winrt::event_token pageNavigationToken{};
-    winrt::event_token altWheelTurnPageToken{};
+    winrt::event_token wheelTurnPageToken{};
     winrt::event_token desktopPassthroughToken{};
     winrt::event_token floatingDockToken{};
 
@@ -285,14 +286,15 @@ struct GeneralPagePresenter::Impl
         nextPageHotkeyRow.Initialize(nextPageHotkey);
         pageNavigationCard.content.Children().Append(
             nextPageHotkeyRow.row.root);
-        altWheelTurnPageToggle = muxc::ToggleSwitch{};
-        altWheelTurnPageToggle.HorizontalAlignment(
+        wheelTurnPageCombo = muxc::ComboBox{};
+        wheelTurnPageCombo.HorizontalAlignment(
             mux::HorizontalAlignment::Right);
-        altWheelTurnPageToggleRow.Initialize(altWheelTurnPageToggle);
-        altWheelTurnPageToggleRow.SetControlAlignment(
+        wheelTurnPageCombo.MinWidth(160.0);
+        wheelTurnPageRow.Initialize(wheelTurnPageCombo);
+        wheelTurnPageRow.SetControlAlignment(
             mux::HorizontalAlignment::Right);
         pageNavigationCard.content.Children().Append(
-            altWheelTurnPageToggleRow.root);
+            wheelTurnPageRow.root);
 
         InitializeCard(desktopPassthroughCard, cardStyle, desktopRoot);
         desktopPassthroughToggle = muxc::ToggleSwitch{};
@@ -431,11 +433,15 @@ struct GeneralPagePresenter::Impl
                     settings.pageNavigationKeyboardEnabled = enabled;
                 });
             });
-        altWheelTurnPageToken = altWheelTurnPageToggle.Toggled(
+        wheelTurnPageToken = wheelTurnPageCombo.SelectionChanged(
             [this](const auto&, const auto&) {
-                const bool enabled = altWheelTurnPageToggle.IsOn();
-                CommitGeneral([enabled](GeneralSettings& settings) {
-                    settings.altWheelTurnPage = enabled;
+                if (updatingControls || closed || !active || !hasSnapshot)
+                    return;
+                const int index = wheelTurnPageCombo.SelectedIndex();
+                if (index < 0 || index > 2)
+                    return;
+                CommitGeneral([index](GeneralSettings& settings) {
+                    settings.wheelTurnPageMode = index;
                 });
             });
         desktopPassthroughToken = desktopPassthroughToggle.Toggled(
@@ -544,7 +550,9 @@ struct GeneralPagePresenter::Impl
         doubleClickHideToggle.IsOn(settings.doubleClickHideDesktop);
         pageNavigationToggle.IsOn(
             settings.pageNavigationKeyboardEnabled);
-        altWheelTurnPageToggle.IsOn(settings.altWheelTurnPage);
+        wheelTurnPageMode = std::clamp(
+            settings.wheelTurnPageMode, 0, 2);
+        wheelTurnPageCombo.SelectedIndex(wheelTurnPageMode);
         previousPageHotkey.SetValue(Chord(
             settings.pageNavigationPreviousModifiers,
             settings.pageNavigationPreviousVirtualKey), generation);
@@ -659,6 +667,21 @@ struct GeneralPagePresenter::Impl
         SelectLanguage();
     }
 
+    void RebuildWheelTurnPageOptions()
+    {
+        const char* const optionKeys[3] = {
+            "app.settings.wheel_turn_page_off",
+            "app.settings.wheel_turn_page_alt",
+            "app.settings.wheel_turn_page_wheel",
+        };
+        wheelTurnPageCombo.Items().Clear();
+        for (const auto* key : optionKeys)
+            wheelTurnPageCombo.Items().Append(
+                winrt::box_value(L(key)));
+        wheelTurnPageCombo.SelectedIndex(
+            std::clamp(wheelTurnPageMode, 0, 2));
+    }
+
     HotkeyRecorderText HotkeyText(std::wstring automationName) const
     {
         HotkeyRecorderText text;
@@ -728,7 +751,7 @@ struct GeneralPagePresenter::Impl
             L("app.settings.hotkey_capture_help"));
         pageNavigationToggleRow.SetText(
             L("app.settings.page_navigation_keyboard"));
-        altWheelTurnPageToggleRow.SetText(
+        wheelTurnPageRow.SetText(
             L("app.settings.wheel_turn_page"),
             L("app.settings.wheel_turn_page_hint"));
         previousPageHotkeyRow.row.SetText(
@@ -776,8 +799,8 @@ struct GeneralPagePresenter::Impl
         muxa::AutomationProperties::SetName(
             pageNavigationToggle, pageNavigationToggleRow.label.Text());
         muxa::AutomationProperties::SetName(
-            altWheelTurnPageToggle,
-            altWheelTurnPageToggleRow.label.Text());
+            wheelTurnPageCombo,
+            wheelTurnPageRow.label.Text());
         muxa::AutomationProperties::SetName(
             desktopPassthroughToggle,
             desktopPassthroughToggleRow.label.Text());
@@ -787,6 +810,7 @@ struct GeneralPagePresenter::Impl
             languageCombo, L("app.settings.language"));
 
         RebuildLanguageOptions();
+        RebuildWheelTurnPageOptions();
         RefreshStartupConflict();
         RefreshAdvancedFeatureStatus();
         UpdateConditionalHintVisibility();
@@ -997,7 +1021,7 @@ struct GeneralPagePresenter::Impl
             languageCombo.SelectionChanged(languageSelectionToken);
             quickNavigationToggle.Toggled(quickNavigationToken);
             pageNavigationToggle.Toggled(pageNavigationToken);
-            altWheelTurnPageToggle.Toggled(altWheelTurnPageToken);
+            wheelTurnPageCombo.SelectionChanged(wheelTurnPageToken);
             desktopPassthroughToggle.Toggled(desktopPassthroughToken);
             floatingDockToggle.Toggled(floatingDockToken);
         }
@@ -1106,7 +1130,7 @@ void GeneralPagePresenter::RegisterFocusTargets(
         {"general.pageNavigation.previous"});
     registerAliases(impl_->nextPageHotkey.FocusTarget(),
         {"general.pageNavigation.next"});
-    registerAliases(impl_->altWheelTurnPageToggle,
+    registerAliases(impl_->wheelTurnPageCombo,
         {"general.pageNavigation.altWheel", "general.altWheelTurnPage",
             "general.wheel_turn_page"});
     registerAliases(impl_->desktopPassthroughToggle,

@@ -48,7 +48,7 @@ SD_IPC_FIELDS(GeneralSettings,
     v.pageDotsGap, v.pageDotsActiveRadius, v.pageDotsShowName,
     v.pageDotsColorMode, v.pageDotsColorR, v.pageDotsColorG, v.pageDotsColorB,
     v.pageDotsVertical, v.pageDotsHorizontal, v.pageDotsMargin,
-    v.altWheelTurnPage, v.widgetFreePosition, v.widgetHideBorder,
+    v.wheelTurnPageMode, v.widgetFreePosition, v.widgetHideBorder,
     v.language, v.animationMode, v.popupAnimationEffect, v.animationSpeed,
     v.animationFrameLimit, v.animationEnergySaver, v.animationOnBattery,
     v.quickNavigationAppearance, v.collectionPopupAppearance);

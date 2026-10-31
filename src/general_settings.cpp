@@ -188,8 +188,10 @@ bool LoadGeneralSettings(const wchar_t* path, GeneralSettings& settings)
         settings.pageDotsHorizontal = std::clamp(intValue, 0, 2);
     if (ReadFloatField(text, "pageDotsMargin", floatValue))
         settings.pageDotsMargin = std::clamp(floatValue, 8.0f, 100.0f);
-    if (ReadBoolField(text, "altWheelTurnPage", val))
-        settings.altWheelTurnPage = val;
+    if (ReadIntField(text, "wheelTurnPageMode", intValue))
+        settings.wheelTurnPageMode = std::clamp(intValue, 0, 2);
+    else if (ReadBoolField(text, "altWheelTurnPage", val))
+        settings.wheelTurnPageMode = val ? 1 : 0; // 旧版布尔开关迁移
     if (ReadBoolField(text, "widgetFreePosition", val))
         settings.widgetFreePosition = val;
     if (ReadBoolField(text, "widgetHideBorder", val))
@@ -261,8 +263,8 @@ bool SaveGeneralSettings(const wchar_t* path, const GeneralSettings& settings)
     file << "  \"pageDotsVertical\": " << settings.pageDotsVertical << ",\n";
     file << "  \"pageDotsHorizontal\": " << settings.pageDotsHorizontal << ",\n";
     file << "  \"pageDotsMargin\": " << settings.pageDotsMargin << ",\n";
-    file << "  \"altWheelTurnPage\": "
-         << (settings.altWheelTurnPage ? "true" : "false") << ",\n";
+    file << "  \"wheelTurnPageMode\": "
+         << std::clamp(settings.wheelTurnPageMode, 0, 2) << ",\n";
     file << "  \"widgetFreePosition\": "
          << (settings.widgetFreePosition ? "true" : "false") << ",\n";
     file << "  \"widgetHideBorder\": "

@@ -55,7 +55,7 @@ struct GeneralSettings
     int pageDotsVertical = 0;          ///< 垂直位置：0=底部 1=顶部
     int pageDotsHorizontal = 0;        ///< 水平位置：0=居中 1=左侧 2=右侧
     float pageDotsMargin = 8.0f;      ///< 距边距离（像素）
-    bool altWheelTurnPage = true;      ///< Alt + 鼠标滚轮翻页
+    int wheelTurnPageMode = 1;         ///< 滚轮翻页模式：0=关闭 1=Alt+滚轮 2=纯滚轮（仅空白桌面）
     bool widgetFreePosition = true;    ///< 组件全局自由摆放（不吸附网格）
     bool widgetHideBorder = false;     ///< 全局隐藏组件边框
     char language[85] = "system";
