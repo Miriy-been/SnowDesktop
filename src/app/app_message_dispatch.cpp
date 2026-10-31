@@ -386,7 +386,15 @@ LRESULT DesktopApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                     const bool pointerOnPairedBackdropWindow =
                         desktopBackdropCompositor_.
                             IsBackdropWindow(hitWindow);
-                    if (!snowdesktop::desktop_hover_rules::
+                    // 拖拽虚影是鼠标下方最上层的展示用窗口。它覆盖指针时
+                    // WindowFromPoint 只能命中虚影本身，若按“离开桌面”处理，
+                    // 每个采样点都会先触发一次 OnMouseLeave 再被后续消息撤销，
+                    // 造成悬停状态与整帧重绘来回抖动。拖拽期间把虚影视为桌面。
+                    const bool pointerOnDragSurface =
+                        dragSession_.IsActive() &&
+                        IsDragPresentationOnlyWindow(hitWindow);
+                    if (!pointerOnDragSurface &&
+                        !snowdesktop::desktop_hover_rules::
                             ShouldRetainHoverAcrossMouseLeave(
                                 pointerOnContentWindow,
                                 pointerOnPairedBackdropWindow))
@@ -449,7 +457,13 @@ LRESULT DesktopApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             const bool pointerOnPairedBackdropWindow =
                 desktopBackdropCompositor_.
                     IsBackdropWindow(hitWindow);
-            if (snowdesktop::desktop_hover_rules::
+            // 与 WM_MOUSEMOVE 一致：拖拽虚影覆盖指针时仍属于桌面拖拽表面，
+            // 不得把这次 leave 当作真正离开桌面。
+            const bool pointerOnDragSurface =
+                dragSession_.IsActive() &&
+                IsDragPresentationOnlyWindow(hitWindow);
+            if (pointerOnDragSurface ||
+                snowdesktop::desktop_hover_rules::
                     ShouldRetainHoverAcrossMouseLeave(
                         pointerOnContentWindow,
                         pointerOnPairedBackdropWindow))

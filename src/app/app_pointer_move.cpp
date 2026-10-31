@@ -608,12 +608,15 @@ void DesktopApp::OnMouseMoveAt(
             PrepareDockBackdropForDragTransition();
             dragSession_.Begin(source, std::move(sourceItems), std::move(sourceList),
                 mouseDownPoint_, current);
-            if (hwnd_ && IsWindow(hwnd_))
+            if (hwnd_ && IsWindow(hwnd_) && !dragHoverRecoveryTimerActive_)
             {
-                SetTimer(
+                // SetTimer 会同步重置到期时间：旧实现在每个指针采样点调用，
+                // 高报点率鼠标下 50ms 的驻留恢复定时器可能被连续重置而永不
+                // 触发。会话期间只启动一次，避免每条消息一次系统调用。
+                dragHoverRecoveryTimerActive_ = SetTimer(
                     hwnd_, kNativeDragHoverRecoveryTimerId,
                     kNativeDragHoverRecoveryIntervalMs,
-                    nullptr);
+                    nullptr) != 0;
             }
             dragSession_.SetVisualItemBounds(
                 std::move(visualItemBounds));
@@ -1624,6 +1627,19 @@ void DesktopApp::OnMouseMoveAt(
             const bool needsBackgroundPaint = marqueeActive_ ||
                 NeedsBackgroundPaint(oldVisual.layer) ||
                 NeedsBackgroundPaint(newVisual.layer);
+            // 拖拽中扫过桌面图标只改变背影层悬停框，且图标悬停框不超出
+            // 项 bounds：只失效新旧目标的并集即可。旧实现对每个新悬停图标
+            // 整窗失效，高速移动时每个图标一次全屏重绘，是卡顿的主要来源。
+            const bool scopedBackgroundHoverPaint =
+                !marqueeActive_ &&
+                snowdesktop::widget_composition_layer_rules::
+                    CanScopeDesktopBackgroundHoverPaint(
+                        dragSession_.IsActive(),
+                        NeedsBackgroundPaint(oldVisual.layer),
+                        !IsRectEmptyRect(oldVisual.bounds),
+                        NeedsBackgroundPaint(newVisual.layer),
+                        !IsRectEmptyRect(newVisual.bounds)) &&
+                !IsRectEmptyRect(backgroundDirty);
             const bool needsForegroundPaint =
                 NeedsForegroundPaint(oldVisual.layer) ||
                 NeedsForegroundPaint(newVisual.layer) ||
@@ -1642,11 +1658,19 @@ void DesktopApp::OnMouseMoveAt(
             }
             if (needsBackgroundPaint)
             {
-                InvalidateRect(
-                    hwnd_,
-                    IsRectEmptyRect(backgroundDirty)
-                        ? nullptr : &backgroundDirty,
-                    FALSE);
+                if (scopedBackgroundHoverPaint)
+                {
+                    InflateRect(&backgroundDirty, 6, 6);
+                    InvalidateRect(hwnd_, &backgroundDirty, FALSE);
+                }
+                else
+                {
+                    InvalidateRect(
+                        hwnd_,
+                        IsRectEmptyRect(backgroundDirty)
+                            ? nullptr : &backgroundDirty,
+                        FALSE);
+                }
             }
             if (needsBackgroundPaint && !marqueeActive_ &&
                 snowdesktop::desktop_hover_rules::

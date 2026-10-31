@@ -281,7 +281,6 @@ PageDotsLayoutInfo DesktopApp::ComputePageDotsLayout() const
 
     const RECT workArea = targetPage->workArea;
     if (IsRectEmptyRect(workArea)) return info;
-
     // 间距/大小可自定义（读取通用设置，未加载时用默认值）
     const float activeRadius = generalSettings_.pageDotsActiveRadius;
     const float inactiveRadius = std::max(2.0f, activeRadius * 0.6f);
@@ -369,28 +368,88 @@ void DesktopApp::InvalidatePageDotsIndicator()
 }
 
 /**
+ * @brief 读取缓存的圆点指示器布局。
+ *
+ * 拖拽中的圆点命中测试在每个指针采样点执行，而 MaxPageOffset 需要遍历
+ * 页面并调用 PageHasContent。这里用与布局结果相关的输入指纹做缓存：
+ * 页数、组件/项目数量、占用表修订号、当前页偏移、自定义几何设置与工作区
+ * 任一变化才重新解析，其余采样直接返回上次结果。
+ */
+const PageDotsLayoutInfo& DesktopApp::CachedPageDotsLayout() const
+{
+    PageDotsLayoutCacheKey key;
+    key.hidden = desktopIconsHidden_;
+    key.savedPageCount = savedPageIds_.size();
+    key.gridPageCount = gridPages_.size();
+    key.widgetCount = widgets_.size();
+    key.itemCount = items_.size();
+    key.occupancyRevision = desktopOccupancyRevision_;
+    key.pageOffset = pageOffset_;
+    key.horizontal = generalSettings_.pageDotsHorizontal;
+    key.vertical = generalSettings_.pageDotsVertical;
+    key.margin = generalSettings_.pageDotsMargin;
+    key.gap = generalSettings_.pageDotsGap;
+    key.activeRadius = generalSettings_.pageDotsActiveRadius;
+    key.layoutRecordCount = layoutRecords_.size();
+    if (const GridPage* page = GetPageNavigationGridPage())
+        key.workArea = page->workArea;
+
+    const bool same =
+        pageDotsLayoutCacheValid_ &&
+        pageDotsLayoutCacheKey_.hidden == key.hidden &&
+        pageDotsLayoutCacheKey_.savedPageCount == key.savedPageCount &&
+        pageDotsLayoutCacheKey_.gridPageCount == key.gridPageCount &&
+        pageDotsLayoutCacheKey_.widgetCount == key.widgetCount &&
+        pageDotsLayoutCacheKey_.itemCount == key.itemCount &&
+        pageDotsLayoutCacheKey_.occupancyRevision == key.occupancyRevision &&
+        pageDotsLayoutCacheKey_.pageOffset == key.pageOffset &&
+        pageDotsLayoutCacheKey_.horizontal == key.horizontal &&
+        pageDotsLayoutCacheKey_.vertical == key.vertical &&
+        pageDotsLayoutCacheKey_.margin == key.margin &&
+        pageDotsLayoutCacheKey_.gap == key.gap &&
+        pageDotsLayoutCacheKey_.activeRadius == key.activeRadius &&
+        pageDotsLayoutCacheKey_.layoutRecordCount == key.layoutRecordCount &&
+        EqualRect(&pageDotsLayoutCacheKey_.workArea, &key.workArea);
+    if (!same)
+    {
+        pageDotsLayoutCache_ = ComputePageDotsLayout();
+        pageDotsLayoutCacheKey_ = key;
+        pageDotsLayoutCacheValid_ = true;
+    }
+    return pageDotsLayoutCache_;
+}
+
+/**
  * @brief 命中测试常驻圆点分页指示器。
  * @param clientPt client 坐标
  * @return 命中页索引（0-based），未命中返回 -1
  */
 int DesktopApp::HitTestPageDotsIndicator(POINT clientPt) const
 {
-    const PageDotsLayoutInfo info = ComputePageDotsLayout();
+    const PageDotsLayoutInfo& info = CachedPageDotsLayout();
     if (!info.valid) return -1;
 
     // 命中容差：比最大圆点半径再放大 4px，方便点按
     const float hitRadius = std::max(
         info.activeRadius, info.inactiveRadius) + 4.0f;
-    for (int i = 0; i < info.totalPages; ++i)
-    {
-        const float centerX = info.firstDotCenterX
-            + info.uniformSpacing * static_cast<float>(i);
-        const float dx = static_cast<float>(clientPt.x) - centerX;
-        const float dy = static_cast<float>(clientPt.y) - info.dotsCenterY;
-        if (dx * dx + dy * dy <= hitRadius * hitRadius)
-            return i;
-    }
-    return -1;
+    const float dy = static_cast<float>(clientPt.y) - info.dotsCenterY;
+    if (dy * dy > hitRadius * hitRadius)
+        return -1;
+    // 圆点沿 X 轴等距排列：先用胶囊水平范围快速排除，再计算最近下标，
+    // 避免每个采样点遍历全部页面圆点。
+    if (info.uniformSpacing <= 0.0f)
+        return -1;
+    const float relativeX =
+        (static_cast<float>(clientPt.x) - info.firstDotCenterX) /
+        info.uniformSpacing;
+    const int nearest = static_cast<int>(std::lround(relativeX));
+    if (nearest < 0 || nearest >= info.totalPages)
+        return -1;
+    const float dx = static_cast<float>(clientPt.x) -
+        (info.firstDotCenterX + info.uniformSpacing * static_cast<float>(nearest));
+    return dx * dx + dy * dy <= hitRadius * hitRadius
+        ? nearest
+        : -1;
 }
 
 /**

@@ -8629,12 +8629,10 @@ int main(int argc, char** argv)
                 "HitRegion DesktopGrid::HitTestAtPoint(");
         const std::size_t desktopGridCellFilter =
             desktopGridSource.find(
-                "item.gridCell.pageId != page->id",
-                desktopGridHitTest);
+                "candidate.id == item.gridCell.pageId");
         const std::size_t desktopGridKeyNormalize =
             desktopGridSource.find(
-                "ToUpperInvariant(item.layoutKey)",
-                desktopGridHitTest);
+                "occupancyCacheRevision_");
         const std::size_t iconHitTest =
             hitTestingSource.find(
                 "DesktopIcon* DesktopApp::HitTestIcon(");

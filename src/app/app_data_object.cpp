@@ -199,6 +199,9 @@ void DesktopApp::RefreshDesktopItemIndexCache()
 
 void DesktopApp::RefreshCollectedKeysCache()
 {
+    // 收录集合同样决定某个单元是否被视为“被占用”，失效时必须与占用表
+    // 修订号一起递增，避免 DesktopGrid 继续使用旧的占用快照。
+    ++desktopOccupancyRevision_;
     collectedKeysCache_.clear();
     for (const auto& widget : widgets_)
     {

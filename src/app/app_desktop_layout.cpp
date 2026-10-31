@@ -82,6 +82,7 @@ void DesktopApp::LayoutItems()
     // A monitor/grid resize can clamp several anchors into the same cells.
     // Resolve that collision using the existing overflow-page placement path;
     // never perform this automatic adaptation during a live drag preview.
+    ++desktopOccupancyRevision_;
     bool largeIconCollision = false;
     if (!dragSession_.IsActive())
         for (const auto& item : items_)

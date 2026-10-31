@@ -412,6 +412,31 @@ struct PageDotsLayoutInfo
     float inactiveRadius = 0.0f;
 };
 
+/**
+ * @brief 圆点指示器布局缓存的输入指纹。
+ *
+ * 命中测试在拖拽的每个指针采样点上执行；MaxPageOffset 会遍历页面并检查
+ * 内容，因此只在任一输入变化时重新解析布局。
+ */
+struct PageDotsLayoutCacheKey
+{
+    bool hidden = false;
+    bool enabled = true;
+    std::size_t savedPageCount = 0;
+    std::size_t gridPageCount = 0;
+    std::size_t widgetCount = 0;
+    std::size_t itemCount = 0;
+    std::uint64_t occupancyRevision = 0;
+    int pageOffset = 0;
+    int horizontal = 0;
+    int vertical = 0;
+    float margin = 0.0f;
+    float gap = 0.0f;
+    float activeRadius = 0.0f;
+    RECT workArea{};
+    std::size_t layoutRecordCount = 0;
+};
+
 struct UiCompositionAnimationOverlay
 {
     ComPtr<IDCompositionVisual2> visual;
@@ -1112,6 +1137,10 @@ private:
         const RECT& desktopBounds);
     void SyncDragPreviewWindow();
     void ApplyDragPreviewLayerPolicy();
+    /** @brief 记录虚影窗口已写入的顶层 z 序前置窗口。 */
+    void MarkDragPreviewZOrderApplied(bool zOrderWritten, HWND insertAfter);
+    /** @brief 虚影 z 序登记失效（窗口重建、放置失败或隐藏）。 */
+    void DragPreviewZOrderLost();
     bool IsDragPresentationOnlyWindow(HWND window) const;
     HWND ResolveWindowBelowDragPreviewAt(
         POINT screenPoint) const;
@@ -2371,6 +2400,24 @@ private:
     void RefreshDesktopItemIndexCache();
     /** @brief 重建所有桌面型组件已收纳键缓存。 */
     void RefreshCollectedKeysCache();
+    /** @brief 桌面项占用表修订号，供 DesktopGrid 命中测试缓存校验。 */
+    std::uint64_t DesktopOccupancyRevision() const
+    {
+        return desktopOccupancyRevision_;
+    }
+    /** @brief 返回已大写、按 components 收录键去重的缓存集合。 */
+    const std::unordered_set<std::wstring>& WidgetOwnedKeyCache() const;
+    /** @brief 读取缓存后的圆点指示器布局；输入不变时不重新解析。 */
+    const PageDotsLayoutInfo& CachedPageDotsLayout() const;
+    /** @brief 页面是否含内容；与 PageHasContent 结果一致，按修订号缓存。 */
+    bool CachedPageHasContent(const std::wstring& pageId) const;
+    /** @brief 圆点布局缓存；命中测试每个采样点复用，输入变化才重建。 */
+    mutable PageDotsLayoutInfo pageDotsLayoutCache_;
+    mutable PageDotsLayoutCacheKey pageDotsLayoutCacheKey_;
+    mutable bool pageDotsLayoutCacheValid_ = false;
+    mutable std::unordered_map<std::wstring, bool> pageHasContentCache_;
+    mutable std::uint64_t pageHasContentCacheRevision_ = static_cast<std::uint64_t>(-1);
+    mutable bool pageHasContentCacheValid_ = false;
     /**
      * @brief 从所有部件中移除指定的桌面键值。
      * @param keys 需要移除的键值列表
@@ -3739,8 +3786,14 @@ private:
     RECT dragPreviewContentBounds_{};
     RECT dragPreviewWindowBounds_{};
     bool dragPreviewWindowBoundsValid_ = false;
+    // 虚影窗口最近一次写入的 z 序前置窗口；已登记且锚点未变时，逐像素
+    // 放置用 SWP_NOZORDER 跳过同步的 z 序重排。
+    HWND dragPreviewZOrderAfter_ = HWND_TOPMOST;
+    bool dragPreviewZOrderApplied_ = false;
     UINT dragPreviewCompWidth_ = 0;
     UINT dragPreviewCompHeight_ = 0;
+    UINT dragPreviewGeometryWidth_ = 0;
+    UINT dragPreviewGeometryHeight_ = 0;
     std::vector<std::size_t> dragPreviewItemIndices_;
     std::vector<RECT> dragPreviewItemBounds_;
     std::uint64_t dragPreviewRenderRevision_ = 0;
@@ -3870,6 +3923,18 @@ private:
     RECT presentedDragHandoffBounds_{};
     bool presentedDragDesktopScoped_ = false;
     std::uint64_t presentedDragStaticSceneRevision_ = 0;
+    // 拖拽驻留恢复定时器是否已启动：会话期间只 SetTimer 一次，避免每个
+    // 指针采样点重置到期时间。
+    bool dragHoverRecoveryTimerActive_ = false;
+    // 桌面项占用表修订号：items_ 的网格位置、组件收录键、组件占用格或
+    // 分组关系变化时递增，供 DesktopGrid 的命中测试缓存判断是否需要重建。
+    // 高速拖拽时每个指针采样点都会查询该缓存，不能依赖逐项扫描。
+    std::uint64_t desktopOccupancyRevision_ = 0;
+    // 组件收录键（大写）缓存：PageHasContent 在拖拽翻页的每个采样点被调用，
+    // 逐项生成大写键会成为高频开销。
+    mutable std::unordered_set<std::wstring> widgetOwnedKeysCache_;
+    mutable std::uint64_t widgetOwnedKeysCacheRevision_ = static_cast<std::uint64_t>(-1);
+    mutable bool widgetOwnedKeysCacheValid_ = false;
     int dragGroupOriginX_ = 0;
     int dragGroupOriginY_ = 0;
     // ── 拖放预览缓存（避免每帧重建 BuildDropPreviewList） ──

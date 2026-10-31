@@ -12,6 +12,9 @@
 #include "slot.h"
 #include <vector>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 struct GridPage;
 struct DesktopItem;
@@ -143,9 +146,45 @@ public:
     void DrawDropPreview(ID2D1DeviceContext* ctx, Slot* slot, HitRegion region) override;
 
 private:
+    /**
+     * @brief 命中测试使用的缓存槽位信息。
+     *
+     * 只在 gridPages_ 结构变化或 Slot 集合重建时刷新（由 slotGeneration 校验），
+     * 指针移动的每个采样点直接复用，避免重复构建每列/行中心偏移表。
+     */
+    struct CachedSlotInfo
+    {
+        Slot* slot = nullptr;
+        std::wstring pageId;
+        int column = 0;
+        int row = 0;
+    };
+
+    /**
+     * @brief 已被桌面项占据的网格单元。
+     *
+     * 每个页面对应一张稀疏表，键为 column*rows+row（与 BuildSlots 的
+     * 列主序一致）。只在 items_/widgets_ 布局变化后重建，替代每帧遍历
+     * 全部 items_ 查找占用者。
+     */
+    using OccupancyMap = std::unordered_map<
+        std::wstring, std::unordered_set<int>>;
+
+    void EnsureHitTestCache();
+    void EnsureOccupancyCache() const;
+
     std::vector<GridPage>* pages_;
     std::vector<DesktopItem>* items_;
     DesktopApp* app_;
     RECT bounds_{};
     mutable std::vector<std::unique_ptr<DesktopIcon>> dragSourceCache_;
+
+    std::vector<CachedSlotInfo> cachedHitSlots_;
+    std::unordered_map<std::wstring, std::size_t> cachedPageSlotBase_;
+    std::uint64_t cachedHitSlotGeneration_ = 0;
+    bool cachedHitSlotsValid_ = false;
+
+    mutable OccupancyMap occupancyCache_;
+    mutable std::uint64_t occupancyCacheRevision_ = 0;
+    mutable bool occupancyCacheValid_ = false;
 };

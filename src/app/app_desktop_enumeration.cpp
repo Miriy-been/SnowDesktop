@@ -216,6 +216,8 @@ void DesktopApp::LoadDesktopItems(snowdesktop::shell_refresh::Snapshot* snapshot
     itemTextShadowCache_.clear();
     componentListTextLayoutCache_.clear();
     componentListTextShadowCache_.clear();
+    // 枚举/重建会替换 items_ 集合与网格位置，占用表与收录键缓存必须重建。
+    ++desktopOccupancyRevision_;
     for (auto& item : items_)
     {
         const auto found = previousByKey.find(ToUpperInvariant(item.layoutKey));

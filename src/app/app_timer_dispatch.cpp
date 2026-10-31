@@ -354,6 +354,7 @@ void DesktopApp::OnTimer(WPARAM timerId)
         {
             if (hwnd_ && IsWindow(hwnd_))
                 KillTimer(hwnd_, kNativeDragHoverRecoveryTimerId);
+            dragHoverRecoveryTimerActive_ = false;
             return;
         }
         if (dragDropController_.IsTransportActive() ||

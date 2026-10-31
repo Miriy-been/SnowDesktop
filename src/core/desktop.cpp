@@ -14,6 +14,7 @@
 #include "types.h"
 #include "constants.h"
 #include "utils.h"
+#include "../app/grid_geometry.h"
 #include "../l10n.h"
 #include "../large_icon_visibility_rules.h"
 #include <algorithm>
@@ -96,13 +97,113 @@ std::vector<std::unique_ptr<Slot>> DesktopGrid::BuildSlots()
 }
 
 /**
+ * @brief 刷新命中测试的缓存槽位信息。
+ *
+ * 每个 Slot 的边界在按列/行等分计算中可能被累计舍入改变列中心位置，因此
+ * 不能假设“所有列间距相同”。这里在 Slot 集合重建时按列、按行累计实测，
+ * 之后每个指针采样点只做一次向量比较（每轴 O(log n) 次）。
+ */
+void DesktopGrid::EnsureHitTestCache()
+{
+    if (!pages_) return;
+    const std::uint64_t generation = GetSlotGeneration();
+    if (cachedHitSlotsValid_ &&
+        cachedHitSlotGeneration_ == generation)
+        return;
+
+    const auto& slots = GetSlots();
+    cachedHitSlots_.clear();
+    cachedPageSlotBase_.clear();
+    if (cachedHitSlots_.capacity() < slots.size())
+        cachedHitSlots_.reserve(slots.size());
+
+    std::size_t slotIndex = 0;
+    for (const auto& page : *pages_)
+    {
+        cachedPageSlotBase_[page.id] = slotIndex;
+        for (int row = 0; row < page.rows; ++row)
+        {
+            for (int col = 0; col < page.columns; ++col)
+            {
+                if (slotIndex >= slots.size())
+                    break;
+                CachedSlotInfo info;
+                info.slot = slots[slotIndex].get();
+                info.pageId = page.id;
+                info.column = col;
+                info.row = row;
+                cachedHitSlots_.push_back(std::move(info));
+                ++slotIndex;
+            }
+        }
+    }
+    cachedHitSlotGeneration_ = generation;
+    cachedHitSlotsValid_ = true;
+}
+
+/**
+ * @brief 刷新桌面项占用表（按页面分表，键为列主序单元索引）。
+ *
+ * 与旧命中测试的过滤条件一致：跳过空名字项、已收录进组件的项，以及
+ * 边界为空的项。数据未变化时 revision 校验直接命中，指针移动的每个采样点
+ * 不会重建。
+ */
+void DesktopGrid::EnsureOccupancyCache() const
+{
+    const std::uint64_t revision =
+        app_ ? app_->DesktopOccupancyRevision() : 0;
+    if (occupancyCacheValid_ &&
+        occupancyCacheRevision_ == revision)
+        return;
+
+    occupancyCache_.clear();
+    for (const auto& item : *items_)
+    {
+        if (item.name.empty() ||
+            item.gridCell.pageId.empty() ||
+            (app_ && app_->IsItemInAnyWidget(item)))
+            continue;
+        const GridPage* page = nullptr;
+        if (pages_)
+            for (const auto& candidate : *pages_)
+                if (candidate.id == item.gridCell.pageId)
+                {
+                    page = &candidate;
+                    break;
+                }
+        if (!page)
+            continue;
+        // 旧实现的占用判定是“单元与项 bounds 有交集”，而不是只看锚点。
+        // 被换行标签挤压或布局夹取后，锚点格可能与项实际像素不重合，因此
+        // 这里按像素求交选出真实单元；完全不可见的项不占用任何单元。
+        const int cellX = page->workArea.left + page->marginX +
+            GetGridAxisOffset(*page, item.gridCell.column, true);
+        const int cellY = page->workArea.top + page->marginY +
+            GetGridAxisOffset(*page, item.gridCell.row, false);
+        RECT cellBounds{ cellX, cellY,
+            cellX + page->cellWidth, cellY + page->cellHeight };
+        RECT visible{};
+        if (!IntersectRect(&visible, &item.bounds, &cellBounds))
+            continue;
+        const int cellIndex = item.gridCell.column * std::max(1, page->rows) +
+            item.gridCell.row;
+        occupancyCache_[item.gridCell.pageId].insert(cellIndex);
+    }
+    occupancyCacheRevision_ = revision;
+    occupancyCacheValid_ = true;
+}
+
+/**
  * @brief 命中测试：判断指定点所在的网格区域
  * @param pt 测试点的屏幕坐标
  * @param[out] outSlot 输出参数，指向命中的插槽指针（如未命中则为 nullptr）
  * @return 命中区域类型：None（未命中任何页面）、Empty（空插槽）或 SortBefore（有图标的插槽）
- * @details 首先检查点落在哪个 GridPage 的边界内，然后根据页面行列布局计算对应的
- *          列索引和行索引，定位到具体插槽。最后检查该插槽是否被某个桌面项占据，
- *          被收集的项（collectedKeysCache_ 中）会被跳过。
+ * @details 先按页面矩形定位页面，再在缓存槽位中按列/行中心二分查找最近单元，
+ *          最后查占用表判断该单元是否被某个桌面项占据（已收录进组件的项不算占用）。
+ *
+ *          该函数位于拖拽的每个指针采样点上。旧实现每次遍历全部行列计算
+ *          最近格心、再遍历全部 items_ 查找占用者并为每项生成大写键，高速
+ *          移动时会成为丢帧来源；现在每次采样只做二分与哈希查询。
  */
 HitRegion DesktopGrid::HitTestAtPoint(POINT pt, Slot*& outSlot)
 {
@@ -116,58 +217,88 @@ HitRegion DesktopGrid::HitTestAtPoint(POINT pt, Slot*& outSlot)
     }
     if (!page) return HitRegion::None;
 
-    auto axisIndex = [](const GridPage& pg, int coord, bool horizontal) -> int {
-        const int count = horizontal ? pg.columns : pg.rows;
-        int margin = horizontal ? pg.marginX : pg.marginY;
-        int cellSize = horizontal ? pg.cellWidth : pg.cellHeight;
-        int origin = horizontal ? pg.workArea.left : pg.workArea.top;
-        int bestIndex = 0;
-        int bestDistance = INT_MAX;
-        for (int i = 0; i < count; ++i)
+    EnsureHitTestCache();
+    const auto baseIt = cachedPageSlotBase_.find(page->id);
+    if (baseIt == cachedPageSlotBase_.end())
+        return HitRegion::None;
+
+    const int columns = std::max(1, page->columns);
+    const int rows = std::max(1, page->rows);
+    const std::size_t pageBase = baseIt->second;
+
+    // 与 BuildSlots 相同的列主序遍历：slotIndex = row*columns + col。
+    // 列中心在列主序中是等差数列，行中心在连续 columns 个元素内也是等差
+    // 数列，因此分别二分即可得到最近单元，无需每帧扫描整页。
+    const auto slotCenterX = [&](int column) -> int {
+        const std::size_t index = pageBase +
+            static_cast<std::size_t>(column);
+        if (index >= cachedHitSlots_.size())
+            return pt.x;
+        const RECT bounds = cachedHitSlots_[index].slot->GetBounds();
+        return bounds.left + (bounds.right - bounds.left) / 2;
+    };
+    const auto slotCenterY = [&](int row) -> int {
+        const std::size_t index = pageBase +
+            static_cast<std::size_t>(row) * static_cast<std::size_t>(columns);
+        if (index < cachedHitSlots_.size())
         {
-            int center = origin + margin + GetGridAxisOffset(pg, i, horizontal) + cellSize / 2;
-            int distance = std::abs(coord - center);
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                bestIndex = i;
-            }
+            const RECT bounds = cachedHitSlots_[index].slot->GetBounds();
+            return bounds.top + (bounds.bottom - bounds.top) / 2;
         }
-        return bestIndex;
+        if (pageBase < cachedHitSlots_.size())
+        {
+            const RECT bounds = cachedHitSlots_[pageBase].slot->GetBounds();
+            return bounds.top + (bounds.bottom - bounds.top) / 2;
+        }
+        return pt.y;
     };
 
-    int col = axisIndex(*page, pt.x, true);
-    int row = axisIndex(*page, pt.y, false);
-
-    size_t idx = 0;
-    for (const auto& p : *pages_)
+    int col = 0;
     {
-        if (p.id == page->id) { idx += col + row * p.columns; break; }
-        idx += p.columns * p.rows;
+        int low = 0;
+        int high = columns;
+        while (high - low > 1)
+        {
+            const int mid = (low + high) / 2;
+            if (slotCenterX(mid) <= pt.x) low = mid;
+            else high = mid;
+        }
+        col = low;
+        if (low + 1 < columns &&
+            std::abs(slotCenterX(low + 1) - pt.x) <
+                std::abs(slotCenterX(low) - pt.x))
+            col = low + 1;
+    }
+    int rowIndex = 0;
+    {
+        int low = 0;
+        int high = rows;
+        while (high - low > 1)
+        {
+            const int mid = (low + high) / 2;
+            if (slotCenterY(mid) <= pt.y) low = mid;
+            else high = mid;
+        }
+        rowIndex = low;
+        if (low + 1 < rows &&
+            std::abs(slotCenterY(low + 1) - pt.y) <
+                std::abs(slotCenterY(low) - pt.y))
+            rowIndex = low + 1;
     }
 
-    auto& slots = GetSlots();
-    if (idx >= slots.size()) return HitRegion::Empty;
-    outSlot = slots[idx].get();
+    const std::size_t index = pageBase +
+        static_cast<std::size_t>(col) +
+        static_cast<std::size_t>(rowIndex) * static_cast<std::size_t>(columns);
+    if (index >= cachedHitSlots_.size())
+        return HitRegion::Empty;
+    outSlot = cachedHitSlots_[index].slot;
 
-    DesktopItem* occupiedBy = nullptr;
-    for (auto& item : *items_)
-    {
-        if (item.gridCell.pageId != page->id ||
-            item.gridCell.column != col ||
-            item.gridCell.row != row ||
-            item.bounds.left >= item.bounds.right ||
-            item.bounds.top >= item.bounds.bottom)
-            continue;
-        if (app_ && app_->collectedKeysCache_.count(
-                ToUpperInvariant(item.layoutKey)))
-            continue;
-        occupiedBy = &item;
-        break;
-    }
-
-    if (!occupiedBy) return HitRegion::Empty;
-    return HitRegion::SortBefore;
+    EnsureOccupancyCache();
+    const auto pageOccupancy = occupancyCache_.find(page->id);
+    if (pageOccupancy != occupancyCache_.end() &&
+        pageOccupancy->second.contains(col * rows + rowIndex))
+        return HitRegion::SortBefore;
+    return HitRegion::Empty;
 }
 
 /**

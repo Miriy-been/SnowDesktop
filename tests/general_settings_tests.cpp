@@ -207,6 +207,33 @@ int main()
     GeneralSettings migrated;
     Check(LoadGeneralSettings(path.c_str(), migrated),
         "legacy general settings still load");
+    {
+        // 滚轮翻页由旧布尔开关迁移为三档模式：旧配置必须映射到 Alt+滚轮
+        // 或关闭，未知取值必须夹到合法档位，否则设置页下拉框会越界。
+        // 文件在 `Check` 内联构造：GCC 风格的临时 ofstream 作用域依赖
+        // 已关闭文件才可读，MSVC 上则不会。
+        const auto writeAndLoad = [&path](const char* json, int defaultMode) {
+            {
+                std::ofstream file(path, std::ios::binary | std::ios::trunc);
+                file << json;
+            }
+            GeneralSettings settings;
+            settings.wheelTurnPageMode = defaultMode;
+            if (!LoadGeneralSettings(path.c_str(), settings))
+                return -1;
+            return settings.wheelTurnPageMode;
+        };
+        Check(writeAndLoad("{\n  \"altWheelTurnPage\": true,\n  \"language\": \"system\"\n}", 0) == 1,
+            "legacy Alt+wheel boolean migrates to Alt+wheel mode");
+        Check(writeAndLoad("{\n  \"altWheelTurnPage\": false,\n  \"language\": \"system\"\n}", 1) == 0,
+            "legacy disabled Alt+wheel boolean migrates to the disabled mode");
+        Check(writeAndLoad(
+                "{\n  \"wheelTurnPageMode\": 2,\n  \"altWheelTurnPage\": false,\n  \"language\": \"system\"\n}",
+                0) == 2,
+            "three-option wheel mode wins over the legacy boolean");
+        Check(writeAndLoad("{\n  \"wheelTurnPageMode\": 9,\n  \"language\": \"system\"\n}", 0) == 2,
+            "unsupported wheel mode is clamped to the plain wheel mode");
+    }
     Check(migrated.animationMode == 0 && migrated.popupAnimationEffect == 2 &&
         migrated.animationSpeed == 1 && migrated.animationFrameLimit == 0 &&
         migrated.animationEnergySaver && !migrated.animationOnBattery,

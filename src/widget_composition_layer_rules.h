@@ -125,6 +125,28 @@ constexpr bool NeedsForegroundPaint(PointerVisualLayer layer)
     return layer == PointerVisualLayer::Foreground;
 }
 
+/**
+ * @brief 桌面背影层的悬停变化能否只重绘悬停目标区域。
+ *
+ * 图标悬停框与选中框都不超出项 bounds，拖拽中扫过其它图标时只需失效
+ * 新旧目标的并集，不必整窗重绘。Dock / 集合弹窗等前景层、组件层，以及
+ * 悬停为空（需要擦除上一次状态但无从得知区域）的情况仍走整帧。
+ */
+inline bool CanScopeDesktopBackgroundHoverPaint(
+    bool dragging,
+    bool oldLayerBackground,
+    bool oldBoundsValid,
+    bool newLayerBackground,
+    bool newBoundsValid)
+{
+    if (!dragging)
+        return false;
+    if (oldLayerBackground && newLayerBackground)
+        return oldBoundsValid || newBoundsValid;
+    // 从空白桌面进入图标：只需绘制新图标区域。
+    return newLayerBackground && newBoundsValid;
+}
+
 constexpr bool ShouldDeferWidgetSurfaceDraw(
     bool desktopPaintInProgress,
     bool floatingDockPaintInProgress,

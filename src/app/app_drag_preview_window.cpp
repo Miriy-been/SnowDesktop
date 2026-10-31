@@ -39,7 +39,10 @@ void DesktopApp::ResetDragPreviewCompositionResources()
     dragPreviewItemBounds_.clear();
     dragPreviewRenderRevision_ = 0;
     dragPreviewContentBounds_ = {};
+    dragPreviewGeometryWidth_ = 0;
+    dragPreviewGeometryHeight_ = 0;
     dragPreviewWindowBoundsValid_ = false;
+    DragPreviewZOrderLost();
 }
 
 void DesktopApp::HideDragPreviewWindow()
@@ -50,6 +53,24 @@ void DesktopApp::HideDragPreviewWindow()
     {
         ShowWindow(dragPreviewHwnd_, SW_HIDE);
     }
+    // 隐藏后的首次放置必须重新建立顶层 z 序，不能沿用会话中的登记值。
+    DragPreviewZOrderLost();
+}
+
+void DesktopApp::MarkDragPreviewZOrderApplied(
+    bool zOrderWritten,
+    HWND insertAfter)
+{
+    if (!zOrderWritten)
+        return;
+    dragPreviewZOrderApplied_ = true;
+    dragPreviewZOrderAfter_ = insertAfter;
+}
+
+void DesktopApp::DragPreviewZOrderLost()
+{
+    dragPreviewZOrderApplied_ = false;
+    dragPreviewZOrderAfter_ = HWND_TOPMOST;
 }
 
 void DesktopApp::ApplyDragPreviewLayerPolicy()
@@ -66,7 +87,10 @@ void DesktopApp::ApplyDragPreviewLayerPolicy()
     HDWP batch = BeginDeferWindowPos(visibleHint ? 2 : 1);
     if (batch && visibleHint) batch = DeferWindowPos(batch, visibleHint, HWND_TOPMOST, 0, 0, 0, 0, flags);
     if (batch) batch = DeferWindowPos(batch, dragPreviewHwnd_, policy.insertAfter, 0, 0, 0, 0, flags);
-    if (batch) EndDeferWindowPos(batch);
+    if (batch && EndDeferWindowPos(batch))
+        MarkDragPreviewZOrderApplied(true, policy.insertAfter);
+    else
+        DragPreviewZOrderLost();
 }
 
 void DesktopApp::DestroyDragPreviewWindow()
@@ -110,14 +134,30 @@ HRESULT DesktopApp::CreateOrResizeDragPreviewCompositionSurface(
         if (FAILED(hr))
             return hr;
     }
-    if (dragPreviewDcompSurface_ &&
-        dragPreviewCompWidth_ == width &&
-        dragPreviewCompHeight_ == height)
+    // 最近一次绘制请求的几何；surface 实际尺寸可能更大（见下方复用规则）。
+    dragPreviewGeometryWidth_ = width;
+    dragPreviewGeometryHeight_ = height;
+    const bool surfaceReused =
+        dragPreviewDcompSurface_ &&
+        snowdesktop::drag_visual_rules::
+            ShouldReusePreviewSurface(
+                dragPreviewCompWidth_, dragPreviewCompHeight_,
+                width, height);
+    if (surfaceReused)
         return S_OK;
+
+    // surface 只增长不收缩：窗口尺寸只在几何真正增长时变化，拖拽中不再
+    // 逐像素重建。内容仍按窗口大小绘制，旧尺寸的残余区域由调用方清除。
+    const UINT surfaceWidth =
+        dragPreviewDcompSurface_ && dragPreviewCompWidth_ >= width
+        ? dragPreviewCompWidth_ : width;
+    const UINT surfaceHeight =
+        dragPreviewDcompSurface_ && dragPreviewCompHeight_ >= height
+        ? dragPreviewCompHeight_ : height;
 
     ComPtr<IDCompositionSurface> surface;
     HRESULT hr = dcompDevice_->CreateSurface(
-        width, height,
+        surfaceWidth, surfaceHeight,
         DXGI_FORMAT_B8G8R8A8_UNORM,
         DXGI_ALPHA_MODE_PREMULTIPLIED,
         &surface);
@@ -128,8 +168,8 @@ HRESULT DesktopApp::CreateOrResizeDragPreviewCompositionSurface(
         return hr;
 
     dragPreviewDcompSurface_ = std::move(surface);
-    dragPreviewCompWidth_ = width;
-    dragPreviewCompHeight_ = height;
+    dragPreviewCompWidth_ = surfaceWidth;
+    dragPreviewCompHeight_ = surfaceHeight;
     dragPreviewRenderRevision_ = 0;
     return S_OK;
 }
@@ -150,6 +190,7 @@ bool DesktopApp::RenderDragPreviewCompositionFrame(
         1, desktopBounds.right - desktopBounds.left));
     const UINT height = static_cast<UINT>(std::max<LONG>(
         1, desktopBounds.bottom - desktopBounds.top));
+    const bool surfaceMissing = !dragPreviewDcompSurface_;
     HRESULT hr = CreateOrResizeDragPreviewCompositionSurface(
         width, height);
     if (FAILED(hr) || !dragPreviewDcompSurface_)
@@ -158,10 +199,19 @@ bool DesktopApp::RenderDragPreviewCompositionFrame(
         return false;
     }
 
+    // surface 只增长不收缩。内容按窗口大小（desktopBounds）绘制；
+    // surface 本地坐标等于世界坐标（平移只扣除 BeginDraw 更新偏移），
+    // 因此复用更宽的 surface 时先整体清空，既覆盖当前窗口区域，也清掉
+    // 旧尺寸的残余像素，避免透明虚影残留上一帧的放大图标。
+    const RECT drawBounds{ 0, 0,
+        static_cast<LONG>(dragPreviewCompWidth_),
+        static_cast<LONG>(dragPreviewCompHeight_) };
+    const RECT* drawUpdate = surfaceMissing ? nullptr : &drawBounds;
+
     ID2D1DeviceContext* rawContext = nullptr;
     POINT updateOffset{};
     hr = dragPreviewDcompSurface_->BeginDraw(
-        nullptr, __uuidof(ID2D1DeviceContext),
+        drawUpdate, __uuidof(ID2D1DeviceContext),
         reinterpret_cast<void**>(&rawContext),
         &updateOffset);
     if (FAILED(hr) || !rawContext)
@@ -427,9 +477,6 @@ void DesktopApp::SyncDragPreviewWindow()
         return;
     }
 
-    const bool geometryChanged =
-        width != dragPreviewCompWidth_ ||
-        height != dragPreviewCompHeight_;
     const RECT requestedWindowBounds{
         screenOrigin.x,
         screenOrigin.y,
@@ -438,39 +485,82 @@ void DesktopApp::SyncDragPreviewWindow()
     };
     const bool previewWasVisible =
         IsWindowVisible(dragPreviewHwnd_) != FALSE;
-    if (snowdesktop::drag_visual_rules::
-            ShouldApplyPreviewWindowPlacement(
+    const bool geometryChanged =
+        !dragPreviewDcompSurface_ ||
+        width != dragPreviewGeometryWidth_ ||
+        height != dragPreviewGeometryHeight_;
+    const bool needsRender =
+        geometryChanged ||
+        dragPreviewRenderRevision_ !=
+            dragSession_.StaticSceneRevision();
+    // 高速移动时每个采样点都会放置一次窗口：位置必须跟手；但窗口尺寸
+    // 只在需要重建 surface 时才提交。虚影窗口长度会随内容宽度变化，长度
+    // 变化不改变左上角——逐像素改窗口尺寸与 surface 会带来同步的
+    // WM_WINDOWPOSCHANGING/CHANGED 与全部被拖图标重绘，放大丢帧。
+    const bool needsPlacement =
+        snowdesktop::drag_visual_rules::
+            NeedsPreviewWindowPlacement(
                 previewWasVisible,
                 dragPreviewWindowBoundsValid_,
                 dragPreviewWindowBounds_,
-                requestedWindowBounds))
+                requestedWindowBounds);
+    if (needsPlacement)
     {
-        const auto zOrder = snowdesktop::drag_visual_rules::
-            ResolvePreviewWindowZOrderPolicy(
-                previewWasVisible, hintHwnd_ && IsWindowVisible(hintHwnd_) ? hintHwnd_ : nullptr);
-        const bool placementSizeChanged =
-            !dragPreviewWindowBoundsValid_ ||
-            dragPreviewWindowBounds_.right -
-                    dragPreviewWindowBounds_.left !=
-                static_cast<LONG>(width) ||
-            dragPreviewWindowBounds_.bottom -
-                    dragPreviewWindowBounds_.top !=
-                static_cast<LONG>(height);
-        const UINT placementFlags = zOrder.flags |
-            (placementSizeChanged ? 0 : SWP_NOSIZE);
+        const bool firstPlacement =
+            !previewWasVisible || !dragPreviewWindowBoundsValid_;
+        const bool includeSize =
+            snowdesktop::drag_visual_rules::
+                PreviewPlacementIncludesSize(
+                    firstPlacement, needsRender);
+        // z 序在已登记且前置窗口不变时保持，用 SWP_NOZORDER 跳过同步
+        // 的 z 序重排。
+        const auto placementZOrder =
+            snowdesktop::drag_visual_rules::
+                ResolvePreviewPlacementZOrder(
+                    previewWasVisible,
+                    dragPreviewZOrderApplied_,
+                    dragPreviewZOrderAfter_,
+                    hintHwnd_ && IsWindowVisible(hintHwnd_)
+                        ? hintHwnd_ : nullptr);
+        const UINT windowWidth =
+            snowdesktop::drag_visual_rules::PreviewWindowDimension(
+                includeSize, width, dragPreviewWindowBoundsValid_
+                    ? static_cast<UINT>(dragPreviewWindowBounds_.right -
+                        dragPreviewWindowBounds_.left)
+                    : width);
+        const UINT windowHeight =
+            snowdesktop::drag_visual_rules::PreviewWindowDimension(
+                includeSize, height, dragPreviewWindowBoundsValid_
+                    ? static_cast<UINT>(dragPreviewWindowBounds_.bottom -
+                        dragPreviewWindowBounds_.top)
+                    : height);
+        const UINT placementFlags = placementZOrder.flags |
+            (includeSize ? 0u : static_cast<UINT>(SWP_NOSIZE));
         if (!SetWindowPos(
-                dragPreviewHwnd_, zOrder.insertAfter,
+                dragPreviewHwnd_, placementZOrder.insertAfter,
                 screenOrigin.x, screenOrigin.y,
-                static_cast<int>(width),
-                static_cast<int>(height),
+                includeSize ? static_cast<int>(windowWidth) : 0,
+                includeSize ? static_cast<int>(windowHeight) : 0,
                 placementFlags))
         {
             dragPreviewWindowBoundsValid_ = false;
+            DragPreviewZOrderLost();
             HideDragPreviewWindow();
             return;
         }
-        dragPreviewWindowBounds_ = requestedWindowBounds;
+        dragPreviewWindowBounds_ =
+            snowdesktop::drag_visual_rules::
+                RegisteredPreviewWindowBounds(
+                    requestedWindowBounds,
+                    windowWidth, windowHeight, includeSize);
         dragPreviewWindowBoundsValid_ = true;
+        MarkDragPreviewZOrderApplied(
+            (placementFlags & SWP_NOZORDER) == 0,
+            placementZOrder.insertAfter);
+    }
+    else if (previewWasVisible)
+    {
+        // 位置与尺寸均未变化：本采样点无需任何窗口调用。
     }
     else
     {
@@ -488,11 +578,6 @@ void DesktopApp::SyncDragPreviewWindow()
     // the synchronous WM_WINDOWPOSCHANGING/WM_WINDOWPOSCHANGED pair it emits
     // for every pointer pixel.
 
-    const bool needsRender =
-        !dragPreviewDcompSurface_ ||
-        geometryChanged ||
-        dragPreviewRenderRevision_ !=
-            dragSession_.StaticSceneRevision();
     if (needsRender &&
         !RenderDragPreviewCompositionFrame(contentBounds))
     {
@@ -508,10 +593,13 @@ void DesktopApp::SyncDragPreviewWindow()
     }
     if (!previewWasVisible)
     {
+        // 首次显示：建立顶层带并显示窗口，z 序视为已登记，后续逐像素
+        // 放置即可用 SWP_NOZORDER 跳过同步的 z 序重排。
         const auto policy = snowdesktop::drag_visual_rules::ResolvePreviewWindowZOrderPolicy(false,
             hintHwnd_ && IsWindowVisible(hintHwnd_) ? hintHwnd_ : nullptr);
         SetWindowPos(dragPreviewHwnd_, policy.insertAfter, 0, 0, 0, 0,
             policy.flags | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        MarkDragPreviewZOrderApplied(true, policy.insertAfter);
     }
 }
 

@@ -518,6 +518,7 @@ void DesktopApp::EndDragSession()
 {
     if (hwnd_ && IsWindow(hwnd_))
         KillTimer(hwnd_, kNativeDragHoverRecoveryTimerId);
+    dragHoverRecoveryTimerActive_ = false;
     ResetDockHandoffDwell();
     ResetCompactCollectionHandoffDwell();
     CancelCollectionPopupDwell();

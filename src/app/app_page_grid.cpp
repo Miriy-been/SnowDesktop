@@ -1135,11 +1135,9 @@ bool DesktopApp::PageHasContent(const std::wstring& pageId) const
     // 尺寸记录后，下次保存会把页面持久化成 1x1 占位网格，随后刷新把页上
     // 文件全部挤回第一页。布局记录是最后一次保存的持久视图，只要有未被
     // 组件收录的文件仍指向该页，就视为非空。
-    std::unordered_set<std::wstring> widgetOwnedKeys;
-    for (const auto& w : widgets_)
-        for (const auto& key : w.itemKeys)
-            if (!key.empty())
-                widgetOwnedKeys.insert(ToUpperInvariant(key));
+    // 该函数在拖拽圆点/热边翻页的每个指针采样点上被调用，因此收录键集合
+    // 只在 widgets_ 变化时构建一次，避免逐项生成大写临时字符串。
+    const auto& widgetOwnedKeys = WidgetOwnedKeyCache();
     for (const auto& [key, record] : layoutRecords_)
     {
         if (!record.hasGrid || record.cell.pageId != pageId) continue;
@@ -1147,6 +1145,26 @@ bool DesktopApp::PageHasContent(const std::wstring& pageId) const
         return true;
     }
     return false;
+}
+
+const std::unordered_set<std::wstring>& DesktopApp::WidgetOwnedKeyCache() const
+{
+    // itemKeys 来自布局文件，而运行时布局各自重新大写，所以这里统一归一化。
+    // 缓存只在组件收录修订号变化时重建；该修订号在 RefreshCollectedKeysCache
+    // 与 LayoutItems 中递增，覆盖组件增删与键集合变化。
+    if (widgetOwnedKeysCacheValid_ &&
+        widgetOwnedKeysCacheRevision_ == desktopOccupancyRevision_)
+    {
+        return widgetOwnedKeysCache_;
+    }
+    widgetOwnedKeysCache_.clear();
+    for (const auto& widget : widgets_)
+        for (const auto& owned : widget.itemKeys)
+            if (!owned.empty())
+                widgetOwnedKeysCache_.insert(ToUpperInvariant(owned));
+    widgetOwnedKeysCacheRevision_ = desktopOccupancyRevision_;
+    widgetOwnedKeysCacheValid_ = true;
+    return widgetOwnedKeysCache_;
 }
 
 bool DesktopApp::RemoveRedundantGuideWidgets()
@@ -1187,6 +1205,34 @@ bool DesktopApp::RemoveRedundantGuideWidgets()
 }
 
 /**
+ * @brief 带缓存的页面非空判断。
+ *
+ * NextNonEmptyOffset / MaximumOffset 会在拖拽的每个指针采样点上逐页调用
+ * PageHasContent；结果只取决于 items_/widgets_/layoutRecords_ 与收录键，
+ * 因此按占用表修订号整体缓存。
+ */
+bool DesktopApp::CachedPageHasContent(const std::wstring& pageId) const
+{
+    if (!pageHasContentCacheValid_ ||
+        pageHasContentCacheRevision_ != desktopOccupancyRevision_)
+    {
+        pageHasContentCache_.clear();
+        for (const auto& id : savedPageIds_)
+        {
+            if (id.empty() || pageHasContentCache_.contains(id))
+                continue;
+            pageHasContentCache_[id] = PageHasContent(id);
+        }
+        pageHasContentCacheRevision_ = desktopOccupancyRevision_;
+        pageHasContentCacheValid_ = true;
+    }
+    const auto found = pageHasContentCache_.find(pageId);
+    return found != pageHasContentCache_.end()
+        ? found->second
+        : PageHasContent(pageId);
+}
+
+/**
  * @brief 从当前偏移位置沿指定方向查找下一个非空页面的偏移量。
  * @param fromOffset 起始偏移量。
  * @param direction 方向（1 向前 / -1 向后）。
@@ -1198,7 +1244,7 @@ int DesktopApp::NextNonEmptyOffset(int fromOffset, int direction) const
         fromOffset, direction,
         savedPageIds_.size(), gridPages_.size(),
         [this](std::size_t pageIndex) {
-            return PageHasContent(savedPageIds_[pageIndex]);
+            return CachedPageHasContent(savedPageIds_[pageIndex]);
         });
 }
 
@@ -1211,7 +1257,7 @@ int DesktopApp::MaxPageOffset() const
     return snowdesktop::page_navigation_rules::MaximumOffset(
         savedPageIds_.size(), gridPages_.size(),
         [this](std::size_t pageIndex) {
-            return PageHasContent(savedPageIds_[pageIndex]);
+            return CachedPageHasContent(savedPageIds_[pageIndex]);
         });
 }
 
