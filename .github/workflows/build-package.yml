@@ -1,0 +1,249 @@
+name: Build and Package
+
+# Windows CI build and release packaging.
+#
+# This workflow deliberately does not call scripts/build.bat. That script runs a
+# preflight that inspects Explorer's loaded modules and refuses to build when the
+# probe itself cannot run, which is the normal state on a hosted runner. The
+# steps below reproduce build.bat exactly: configure the Release preset, build
+# it, build the 32-bit Wallpaper Engine helper, then arrange the private runtime
+# directory. Keep the two in sync when build.bat changes.
+#
+# scripts/test.bat is also avoided: its CTest inventory parser requires a
+# "command" field that recent CTest releases no longer emit, so CI drives CTest
+# directly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_mode:
+        description: "MSIX identity mode (development builds install beside the Store app)"
+        type: choice
+        options:
+          - development
+          - store
+        default: development
+      run_tests:
+        description: "Run the non-integration test suite before packaging"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+    branches:
+      - "release/**"
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # NuGet is restored implicitly by the first MSBuild target that needs it.
+  # Pinning the cache location keeps restores reproducible across jobs.
+  NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+
+jobs:
+  build:
+    name: Build and package (x64)
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          # The release summary records the exact commit; a shallow clone still
+          # provides HEAD, and full history is not needed to build.
+          fetch-depth: 1
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath "version.json" -Raw -Encoding UTF8 |
+            ConvertFrom-Json).version
+          if ($version -notmatch '^[1-9][0-9]*\.[0-9]+\.[0-9]+\.0$') {
+            throw "version.json must use Store-compatible A.B.C.0 format, got '$version'."
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Building SnowDesktop v$version"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          # Package versions are pinned in CMakeLists.txt; the props files decide
+          # which restore inputs matter.
+          key: nuget-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Configure Release preset
+        shell: pwsh
+        env:
+          RUN_TESTS: ${{ inputs.run_tests }}
+        run: |
+          # Enable BUILD_TESTING in the same configure pass when tests are
+          # requested. Reconfiguring later would regenerate the project files
+          # after the Release binaries already exist.
+          $testing = if ($env:RUN_TESTS -eq "true") { "ON" } else { "OFF" }
+          cmake --preset release -A x64 "-DBUILD_TESTING=$testing"
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed." }
+
+      - name: Build Release targets
+        shell: pwsh
+        run: |
+          # --preset release builds SnowDesktop, the launcher, the Steam bridge,
+          # the Workshop Manager and snowwidget. The preset sets jobs=4, which
+          # matches the hosted runner's core count.
+          cmake --build --preset release
+          if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
+
+      - name: Build non-integration tests
+        if: ${{ inputs.run_tests }}
+        shell: pwsh
+        run: |
+          cmake --build --preset fast-tests
+          if ($LASTEXITCODE -ne 0) { throw "Test build failed." }
+
+      - name: Run non-integration tests
+        if: ${{ inputs.run_tests }}
+        shell: pwsh
+        run: |
+          # -LE integration selects the same set SnowDesktopFastTests builds.
+          ctest --test-dir .build -C Release -LE integration --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw "Test suite failed." }
+
+      - name: Configure 32-bit Wallpaper Engine helper
+        shell: pwsh
+        run: |
+          $output = (Resolve-Path ".build\Release").Path.Replace('\', '/')
+          cmake -B .build\wallpaper_hook32 -S src\wallpaper_hook -A Win32 `
+            "-DSNOWDESKTOP_OUTPUT_DIR=$output"
+          if ($LASTEXITCODE -ne 0) { throw "32-bit helper configure failed." }
+
+      - name: Build 32-bit Wallpaper Engine helper
+        shell: pwsh
+        run: |
+          cmake --build .build\wallpaper_hook32 --config Release `
+            --target SnowDesktopWallpaperHook32 SnowDesktopWallpaperInjector32
+          if ($LASTEXITCODE -ne 0) { throw "32-bit helper build failed." }
+
+      - name: Arrange private runtime directory
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass `
+            -File scripts\arrange_build_output.ps1 `
+            -BuildOutput "$((Resolve-Path '.build\Release').Path)"
+          if ($LASTEXITCODE -ne 0) { throw "Build output arrangement failed." }
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $required = @(
+            ".build\Release\SnowDesktop.exe",
+            ".build\Release\snowwidget.exe",
+            ".build\Release\SnowDesktop.deployment.json",
+            ".build\Release\SnowDesktop.Runtime\SnowDesktopTaskbarHook.dll",
+            ".build\Release\SnowDesktop.Runtime\SnowDesktopWallpaperHook.dll",
+            ".build\Release\SnowDesktop.Runtime\SnowDesktopWallpaperHook32.dll",
+            ".build\Release\SnowDesktop.Runtime\SnowDesktopWallpaperInjector32.exe"
+          )
+          $missing = @($required | Where-Object {
+            -not (Test-Path -LiteralPath $_ -PathType Leaf)
+          })
+          if ($missing.Count -gt 0) {
+            throw "Build finished but required outputs are missing: $($missing -join ', ')"
+          }
+          Get-Item ".build\Release\SnowDesktop.exe" |
+            Select-Object Name, Length, LastWriteTime | Format-Table | Out-String |
+            Write-Host
+
+      - name: Package release artifacts
+        shell: pwsh
+        env:
+          PACKAGE_MODE: ${{ inputs.package_mode || 'development' }}
+        run: |
+          # package_release.ps1 reuses scripts/build.bat unless -SkipBuild is
+          # passed, so the binaries built above are packaged as-is.
+          $arguments = @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", "scripts\package_release.ps1",
+            "-SkipBuild",
+            "-OutputDirectory", "artifacts\v${{ steps.version.outputs.version }}"
+          )
+          if ($env:PACKAGE_MODE -eq "development") {
+            $arguments += "-Development"
+          }
+          powershell @arguments
+          if ($LASTEXITCODE -ne 0) { throw "Packaging failed." }
+
+      - name: List packaged artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem -LiteralPath "artifacts\v${{ steps.version.outputs.version }}" `
+            -File |
+            Select-Object Name, @{N = 'SizeMB'; E = {
+              [math]::Round($_.Length / 1MB, 2) } } |
+            Format-Table | Out-String | Write-Host
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnowDesktop-v${{ steps.version.outputs.version }}-x64
+          # Staging and the intermediate upload folder are large and redundant;
+          # the .appxsym/.msixupload bundles already carry the same content.
+          path: |
+            artifacts/v${{ steps.version.outputs.version }}/*.zip
+            artifacts/v${{ steps.version.outputs.version }}/*.msix
+            artifacts/v${{ steps.version.outputs.version }}/*.appxsym
+            artifacts/v${{ steps.version.outputs.version }}/*.msixupload
+            artifacts/v${{ steps.version.outputs.version }}/SHA256SUMS.txt
+            artifacts/v${{ steps.version.outputs.version }}/package-info.json
+            artifacts/v${{ steps.version.outputs.version }}/release-summary.md
+            artifacts/v${{ steps.version.outputs.version }}/release-notes.md
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    # Only tag pushes produce a release; pull requests and branch pushes keep
+    # their artifacts in the workflow run.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(artifacts/*/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No packaged files were downloaded." >&2
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          # --clobber keeps re-running a failed tag build idempotent.
+          gh release create "$TAG" "${files[@]}" \
+            --title "SnowDesktop $TAG" \
+            --notes-file "artifacts/$(ls artifacts | head -1)/release-notes.md" \
+            --verify-tag \
+            --clobber
